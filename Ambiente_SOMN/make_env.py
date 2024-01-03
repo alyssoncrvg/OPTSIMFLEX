@@ -21,5 +21,4 @@ def make_env(atraso: int, objetivo: int):
                 objetivo=objetivo
             )
     
-    env = Monitor(env)  # record stats such as returns
     return env

@@ -1,7 +1,5 @@
-from JobShop.JobShop import JobShop
 from Ambiente_SOMN.Demand import Demand
 from Ambiente_SOMN.Yard import Yard
-from Stablebaselines3.OnPolicyAlgirithm import OnPolicyAlgorithm
 import matplotlib.pyplot as plt
 
 from numpy.random.mtrand import seed
@@ -43,7 +41,7 @@ OUT_TIME = False
 FINAL_STATES = [REJECTED_W_WASTE, REJECTED, STORED, DELIVERED]
 
 
-class Somn(Env):
+class Somn(gym.Env):
 
     """Custom Environment that follows gym interface."""
     def __init__(
