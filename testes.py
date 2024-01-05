@@ -1,19 +1,8 @@
-from ray.rllib.env.multi_agent_env import make_multi_agent
+from pettingzoo.test import parallel_api_test
+
 from Ambiente_SOMN.make_env import make_env
-from ray.rllib.algorithms.ppo import PPOConfig
 
+if __name__=="__main__":
+    env = make_env(0,3,0)
 
-ma_stateless_cartpole_cls = make_multi_agent(
-    lambda config: make_env(0,0))
-# Create a 3 agent multi-agent stateless cartpole.
-ma_stateless_cartpole = ma_stateless_cartpole_cls(
-    {"num_agents": 3})
-
-obs = ma_stateless_cartpole.reset()
-print(obs)
-
-config = PPOConfig().environment(env=ma_stateless_cartpole).training(train_batch_size=4000)
-
-algo = config.build()
-
-print(algo.train())
+    parallel_api_test(env, num_cycles=1000000)

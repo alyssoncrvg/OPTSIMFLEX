@@ -19,6 +19,10 @@ from scipy.stats import poisson
 import torch
 # import wandb
 
+#############################################################
+from pettingzoo import ParallelEnv
+#############################################################
+
 # LOAD
 MAX_LOAD = 30
 
@@ -41,7 +45,11 @@ OUT_TIME = False
 FINAL_STATES = [REJECTED_W_WASTE, REJECTED, STORED, DELIVERED]
 
 
-class Somn(gym.Env):
+class Somn(ParallelEnv):
+
+    metadata = {
+        "name": "SOMN",
+    }
 
     """Custom Environment that follows gym interface."""
     def __init__(
@@ -59,6 +67,7 @@ class Somn(gym.Env):
         MAXEU: int,
         #seed: int,
         atraso: int,
+        numAgents: int, #Numero de agentes que vão agir no espaço
         objetivo: int
     ):
         super(Somn).__init__()
@@ -70,13 +79,22 @@ class Somn(gym.Env):
         # Somn.priorqsu = heapdict()
         # Somn.priorqva = heapdict()
         Somn.time = 1
+
+        ##########################################################################
+        self.agents = [f'{i}' for i in range(numAgents)]
+        self.possible_agents = [f'{i}' for i in range(numAgents)] #LISTA DOS AGENTES
+        ##########################################################################
         
         # variaveis para salvar os valores para avaliar cada passo
         self.totReward = 0.0
         self.totPenalty = 0.0
         self.totPenalty2 = 0.0
-        self.reward = 0.0
-        self.penalty = 0.0
+
+        ################################## ALTERANDO AS RECOMPENSAS E PENALIDADES PARA UM DICT
+        self.reward = {}
+        self.penalty = {}
+        ##################################
+
         self.rw_pr = 0.0
         self.rw_va = 0.0
         self.rw_su = 0.0
@@ -115,14 +133,19 @@ class Somn(gym.Env):
         # self.DE_state = np.zeros((N,5))
 
         # print('Inicializado', M, N , Y)
+        
+        self.DE = []  
 
-        self.DE = [
-            Demand(
-                M, N, MAXDO, MAXAM, MAXPR, MAXPE, MAXFT, MAXMT, MAXTI, MAXEU, Somn.time, self.atraso
-            )
-            for _ in range(N)
-        ]
-        self.YA = Yard(self.Y)
+        for agent in range(numAgents):
+            agentDemands = [
+                Demand(
+                    M, N, MAXDO, MAXAM, MAXPR, MAXPE, MAXFT, MAXMT, MAXTI, MAXEU, Somn.time, self.atraso
+                )
+                for _ in range(N)  # ou a quantidade desejada de instâncias por agente
+            ]
+            self.DE.append(agentDemands)
+
+        self.YA = [Yard(self.Y)] * numAgents
 
         ######################
         #      lb e ub       #
@@ -244,9 +267,9 @@ class Somn(gym.Env):
         # accept to produce or reject
         # self.action_space = spaces.Box(0, 4, shape=(1,)) # usar o TD3
         #self.action_space = spaces.Discrete(self.MAXDO)  # usar com o PPO, DQN, A2C
-        self.action_space = spaces.Discrete(self.MAX_ATRASO)
+        self.action_spaces = {f"{i}" : spaces.Discrete(self.MAX_ATRASO) for i in range(numAgents)}
 
-        self.observation_space = spaces.Dict(
+        self.observation_spaces = spaces.Dict(
             {
                 "time": spaces.Box(low=0.0, high=1.0, shape=(1,), dtype=np.float64),
                 "MT": spaces.Box(low=0.0, high=1.0, shape=(self.M,), dtype=np.float64),
@@ -263,6 +286,7 @@ class Somn(gym.Env):
             }
         )  # versao para MultiInputPolicy Normalizada
 
+        self.observation_spaces = {f"{i}" : self.observation_spaces for i in range(numAgents)}
 
     ######################
     #      funcoes       #
@@ -373,7 +397,7 @@ class Somn(gym.Env):
             covered = True
         return covered
     
-    def plan(self, t: int, action):
+    def plan(self, t: int, action, agent):
         
         # wandb.log({
         #     'Tamanho da fila de prioridade' : len(Somn.priorq[Somn.objetivo]),
@@ -384,7 +408,7 @@ class Somn(gym.Env):
             obj = Somn.priorq[Somn.objetivo].popitem()
             i = obj[0]
             if i >= 0:
-                if self.DE[i].ST == 1:  ## DE[I].ST VAI SER SEMPRE 1 PORQUE VEM DA FILAP
+                if self.DE[agent][i].ST == 1:  ## DE[I].ST VAI SER SEMPRE 1 PORQUE VEM DA FILAP
                     
                     # COPY JOB TO JOBSHOP SCHEDULING
                     # for j in range(self.M):
@@ -585,7 +609,7 @@ class Somn(gym.Env):
     ######################
     #       step         #
     ######################
-    def step(self, action):
+    def step(self, actions: dict):
         """
         Atualiza tudo aqui e devolve o próximo estado: n_state, reward, done, info
 
@@ -597,124 +621,133 @@ class Somn(gym.Env):
         Primeira versão vai fazer uma iteração para cada episódio ...
         O Tempo t precisa ser controlado
         """
-        self.totReward = 0.0
-        self.totPenalty = 0.0
-        self.totPenalty2 = 0.0
 
-        self.rw_pr = 0.0                 
-        self.rw_va = 0.0
-        self.rw_su = 0.0
+        info = {}
+        observation = {}
+        done = {}
+        truncated = {}
 
-        self.variabilidade = []
-        self.sustentabilidade = []
-        self.F = []
+        for agent, action in enumerate(actions.values()):
 
-        self.acoes = []
-        self.atrasos_reais = []
+            self.totReward = 0.0
+            self.totPenalty = 0.0
+            self.totPenalty2 = 0.0
 
-        self.acao_on_state_plan = []
-        self.carga_on_state_plan = []
-        self.patio_on_state_plan = []
+            self.rw_pr = 0.0                 
+            self.rw_va = 0.0
+            self.rw_su = 0.0
+
+            self.variabilidade = []
+            self.sustentabilidade = []
+            self.F = []
+
+            self.acoes = []
+            self.atrasos_reais = []
+
+            self.acao_on_state_plan = []
+            self.carga_on_state_plan = []
+            self.patio_on_state_plan = []
 
 
-        # se a fila de prioridade estiver vazia 
-        # entra em order_receive_and_match() senao pula para plan()
-        if len(Somn.priorq[Somn.objetivo]) == 0:
-            covered = False
-            while not covered:
-                covered = self.order_receive_and_match()
-                
-        self.plan(Somn.time, action)
-        for i in range(Demand.N):
-            self.produce(Somn.time, i)
-            self.dispatch(i)
-            self.store(i)
-            self.reject(i)
-            self.reject_w_waste(i)
+            # se a fila de prioridade estiver vazia 
+            # entra em order_receive_and_match() senao pula para plan()
+            if len(Somn.priorq[Somn.objetivo]) == 0:
+                covered = False
+                while not covered:
+                    covered = self.order_receive_and_match()
+                    
+            self.plan(Somn.time, action, agent)
+            for i in range(Demand.N):
+                self.produce(Somn.time, i)
+                self.dispatch(i)
+                self.store(i)
+                self.reject(i)
+                self.reject_w_waste(i)
 
-        if Somn.objetivo == 0: # lucro
-            self.totReward = self.rw_pr
-            self.reward = self.totReward - self.totPenalty
-            self.penalty = self.totPenalty
-        if Somn.objetivo == 1: # variabilidade
-            self.totReward = self.rw_va
-            self.reward = self.totReward - self.totPenalty2
-            self.penalty = self.totPenalty2
-        if Somn.objetivo == 2: # sustentabilidade
-            self.totReward = self.rw_su
-            self.reward = self.totReward - self.totPenalty2
-            self.penalty = self.totPenalty2
+            if Somn.objetivo == 0: # lucro
+                self.totReward = self.rw_pr
+                self.reward[agent] = self.totReward - self.totPenalty
+                self.penalty[agent] = self.totPenalty
+            if Somn.objetivo == 1: # variabilidade
+                self.totReward = self.rw_va
+                self.reward[agent] = self.totReward - self.totPenalty2
+                self.penalty[agent] = self.totPenalty2
+            if Somn.objetivo == 2: # sustentabilidade
+                self.totReward = self.rw_su
+                self.reward[agent] = self.totReward - self.totPenalty2
+                self.penalty[agent] = self.totPenalty2
+            
+            # desconta as penalidades
+            self.rw_pr -= self.totPenalty
+            self.rw_va -= self.totPenalty2
+            self.rw_su -= self.totPenalty2
+
+
+            
+
+            # # avalia os estados finais
+            # (
+            #     reward,             # recompensa calculada com a penalidade aplicada
+            #     penalty,            # penalidade que foi aplicada
+            #     rw_pr,              # recompensa para lucro
+            #     rw_va,              # recompensa para a variabilidade
+            #     rw_su,              # recompensa para a sustentabilidade
+            #     variabilidade,      # variabilidade de 0 a 1
+            #     sustentabilidade,   # sustentabilidade de 0 a 1
+            #     F,                  # numero de features utilizadas (numero de maquinas)
+            #     acoes,              # acoes no estado ready que geraram os estados finais contabilizados
+            #     atrasos_reais       # atrasos reais para compararar com as acoes
+            # ) = self.eval_final_states()  # aqui vai a função que calcula a recompensa
+
+            # logs pontuais Yard e Penalidade
+
+            # self.wandb_log_func()
+
+            # condição de parada
+            done[agent] = False
+            truncated[agent] = False
+            if Somn.time >= self.ub_time:  # 10*Demand.MAXDO + Demand.M   (TEMPOMAX)
+                # print('\n D -- O -- N -- E --', self.DE_state)
+                done[agent] = True
+
+            # atualiza o upper bounds de MT, BA, IN e OU
+            self.atualiza_upper_bounds()
         
-        # desconta as penalidades
-        self.rw_pr -= self.totPenalty
-        self.rw_va -= self.totPenalty2
-        self.rw_su -= self.totPenalty2
+            # Informações adicionais
+            
+            info[agent] = {"rw": self.reward[agent],
+                    "rw_pr": self.rw_pr,
+                    "rw_va": self.rw_va,
+                    "rw_su": self.rw_su,
+                    "VA": self.variabilidade,
+                    "SU": self.sustentabilidade,
+                    "F": self.F,
+                    "acoes": self.acoes,
+                    "atrasos_reais": self.atrasos_reais,
+                    "acao_on_state_plan": self.acao_on_state_plan,
+                    "carga_on_state_plan": self.carga_on_state_plan,
+                    "patio_on_state_plan": self.patio_on_state_plan
+                    }  
+            
+            # observação
+            self.DE_state, self.FT_state = self.observa_demanda()
+            observation[agent] = {
+                "time": np.array([self.normaliza(self.time, self.lb_time, self.ub_time)]),
+                "MT": self.normaliza(self.MT, self.lb_MT, self.ub_MT),
+                "EU": self.normaliza(self.EU, self.lb_EU, self.ub_EU),
+                "BA": self.normaliza(self.BA, self.lb_BA, self.ub_BA),
+                "IN": self.normaliza(self.IN, self.lb_IN, self.ub_IN),
+                "OU": self.normaliza(self.OU, self.lb_OU, self.ub_OU),
+                "DE_state": self.DE_state,
+                "FT_state": self.FT_state,
+                "yard": np.array([self.normaliza(self.YA.cont, self.lb_yard, self.ub_yard)]),
+                "load": np.array([self.normaliza(Demand.load, self.lb_load, self.ub_load)]),
 
+            }  # by_frederic: retorna quando e um tipo Dict
 
-        
-
-        # # avalia os estados finais
-        # (
-        #     reward,             # recompensa calculada com a penalidade aplicada
-        #     penalty,            # penalidade que foi aplicada
-        #     rw_pr,              # recompensa para lucro
-        #     rw_va,              # recompensa para a variabilidade
-        #     rw_su,              # recompensa para a sustentabilidade
-        #     variabilidade,      # variabilidade de 0 a 1
-        #     sustentabilidade,   # sustentabilidade de 0 a 1
-        #     F,                  # numero de features utilizadas (numero de maquinas)
-        #     acoes,              # acoes no estado ready que geraram os estados finais contabilizados
-        #     atrasos_reais       # atrasos reais para compararar com as acoes
-        # ) = self.eval_final_states()  # aqui vai a função que calcula a recompensa
-
-        # logs pontuais Yard e Penalidade
-        self.wandb_log_func()
-
-        # condição de parada
-        done = False
-        truncated = False
-        if Somn.time >= self.ub_time:  # 10*Demand.MAXDO + Demand.M   (TEMPOMAX)
-            # print('\n D -- O -- N -- E --', self.DE_state)
-            done = True
-
-        # atualiza o upper bounds de MT, BA, IN e OU
-        self.atualiza_upper_bounds()
-       
-        # Informações adicionais
-        
-        info = {"rw": self.reward,
-                "rw_pr": self.rw_pr,
-                "rw_va": self.rw_va,
-                "rw_su": self.rw_su,
-                "VA": self.variabilidade,
-                "SU": self.sustentabilidade,
-                "F": self.F,
-                "acoes": self.acoes,
-                "atrasos_reais": self.atrasos_reais,
-                "acao_on_state_plan": self.acao_on_state_plan,
-                "carga_on_state_plan": self.carga_on_state_plan,
-                "patio_on_state_plan": self.patio_on_state_plan
-                }  
-        
-        # observação
-        self.DE_state, self.FT_state = self.observa_demanda()
-        observation = {
-            "time": np.array([self.normaliza(self.time, self.lb_time, self.ub_time)]),
-            "MT": self.normaliza(self.MT, self.lb_MT, self.ub_MT),
-            "EU": self.normaliza(self.EU, self.lb_EU, self.ub_EU),
-            "BA": self.normaliza(self.BA, self.lb_BA, self.ub_BA),
-            "IN": self.normaliza(self.IN, self.lb_IN, self.ub_IN),
-            "OU": self.normaliza(self.OU, self.lb_OU, self.ub_OU),
-            "DE_state": self.DE_state,
-            "FT_state": self.FT_state,
-            "yard": np.array([self.normaliza(self.YA.cont, self.lb_yard, self.ub_yard)]),
-            "load": np.array([self.normaliza(Demand.load, self.lb_load, self.ub_load)]),
-
-        }  # by_frederic: retorna quando e um tipo Dict
-
-        # se não tiver mais demandas na fila de prioridade atualiza o tempo
-        #if len(Somn.priorq[Somn.objetivo]) == 0:
-        Somn.time += 1
+            # se não tiver mais demandas na fila de prioridade atualiza o tempo
+            #if len(Somn.priorq[Somn.objetivo]) == 0:
+            Somn.time += 1
 
         return (
             observation,
@@ -730,6 +763,8 @@ class Somn(gym.Env):
 
     def reset(self, *, seed=None, options=None):
         #super().reset(seed=None)
+
+        self.possible_agents = self.possible_agents[:]
         
         Somn.priorq = [heapdict() for objetivo in Somn.obj_list]
         # Somn.priorqsu = heapdict()
@@ -750,8 +785,8 @@ class Somn(gym.Env):
 
 
         Somn.time = 1
-        self.reward = 0.0
-        self.penalty = 0.0
+        self.reward = {}
+        self.penalty = {}
         self.totReward = 0.0
         self.totPenalty = 0.0
         self.totPenalty2 = 0.0
@@ -765,18 +800,27 @@ class Somn(gym.Env):
         Demand.production_w_waste=0
 
         self.YA = Yard(self.Y)
-        self.DE = [
-            Demand(
-                self.M, self.N, self.MAXDO, self.MAXAM, self.MAXPR, self.MAXPE, self.MAXFT, self.MAXMT, self.MAXTI, self.MAXEU, Somn.time, self.atraso
-            )
-            for _ in range(self.N)
-        ]
+
+        self.DE = []
+
+        for agent in range(len(self.agents)):
+            agentDemands = [
+                Demand(
+                    self.M, self.N, self.MAXDO, self.MAXAM, self.MAXPR, self.MAXPE, self.MAXFT, self.MAXMT, self.MAXTI, self.MAXEU, Somn.time, self.atraso
+                )
+                for _ in range(self.N)
+            ]
+
+            self.DE.append(agentDemands)
 
         # tira todas as demandas de FREE(-1) para READY(0)
-        for i in range(self.N):
-            self.DE[i](Somn.time)
-            
-        info = dict()
+        for agent in range(len(self.agents)):
+            for i in range(self.N):
+                self.DE[agent][i](Somn.time)
+
+        
+        #############################################################################################################################    
+        info = {f"{i}" : {} for i in range(self.num_agents)}
         # observation = (self.DE_state, info)  # by_frederic: retorna quando o tipo é Box
         self.DE_state, self.FT_state = self.observa_demanda()
         observation = {
@@ -792,7 +836,10 @@ class Somn(gym.Env):
             "load": np.array([self.normaliza(Demand.load, self.lb_load, self.ub_load)]),
         }  # by_frederic: retorna quando e um tipo Dict
 
-        return (observation, info)  # by_frederic: para se adequar ao Gymnasium
+        observation = {f"{i}" : observation for i in range(self.num_agents)}
+        ##############################################################################################################################
+
+        return (observation, info)  # by_alysson: para se adequar ao MultAgent
 
     ######################
     #       render       #
