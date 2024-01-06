@@ -78,7 +78,10 @@ class Somn(ParallelEnv):
         # Somn.instance = JobShop()
         # Somn.priorqsu = heapdict()
         # Somn.priorqva = heapdict()
-        Somn.time = 1
+        Somn.time =[]
+
+        for i in range(numAgents):
+            Somn.time.append(1)
 
         ##########################################################################
         self.agents = [f'{i}' for i in range(numAgents)]
@@ -139,7 +142,7 @@ class Somn(ParallelEnv):
         for agent in range(numAgents):
             agentDemands = [
                 Demand(
-                    M, N, MAXDO, MAXAM, MAXPR, MAXPE, MAXFT, MAXMT, MAXTI, MAXEU, Somn.time, self.atraso
+                    M, N, MAXDO, MAXAM, MAXPR, MAXPE, MAXFT, MAXMT, MAXTI, MAXEU, Somn.time[agent], self.atraso
                 )
                 for _ in range(N)  # ou a quantidade desejada de instâncias por agente
             ]
@@ -322,51 +325,51 @@ class Somn(ParallelEnv):
         x_norm = np.array((x - min) / (max - min)).astype(np.float64)
         return x_norm
 
-    def readDemand(self):
+    def readDemand(self, agent):
         for i in range(Demand.N):
-            if (self.DE[i].ST == -1):  # free(-1)
-                self.DE[i](Somn.time)
+            if (self.DE[agent][i].ST == -1):  # free(-1)
+                self.DE[agent][i](Somn.time[agent])
                 self.match[i] = 0
     
-    def match_demand_with_inventory(self) -> bool:
+    def match_demand_with_inventory(self, agent) -> bool:
         for i in range(Demand.N):
-            if self.DE[i].ST == 0: ## SÓ PODE DAR MATCH DEMANDAS CHEGADAS
+            if self.DE[agent][i].ST == 0: ## SÓ PODE DAR MATCH DEMANDAS CHEGADAS
                 if self.Y > 0: # ALTERAÇÃO PARA TESTE DE YARD == 0
                     # idx é a posição se mask_FT deu match no Yard
                     # -1 se não tiver dado match com nada no Yard
-                    idx = self.YA.inYard(self.DE[i].mask_FT)
+                    idx = self.YA.inYard(self.DE[agent][i].mask_FT)
                     if idx >= 0:
                         self.YA.remove_yard(idx)
                         # adiciona a recompensa
-                        # tx_ambiente = self.DE[i].err
-                        self.rw_pr += self.DE[i].AM * self.DE[i].PR
-                        # - self.DE[i].AM * self.DE[i].PR * tx_ambiente * 0.1
-                        self.rw_va += self.DE[i].AM * self.DE[i].PR * self.DE[i].VA
-                        # - self.DE[i].AM * self.DE[i].PR * tx_ambiente * 0.1
-                        self.rw_su += self.DE[i].AM * self.DE[i].PR * self.DE[i].SU
-                        # - self.DE[i].AM * self.DE[i].PR * tx_ambiente * 0.1
+                        # tx_ambiente = self.DE[agent][i].err
+                        self.rw_pr += self.DE[agent][i].AM * self.DE[agent][i].PR
+                        # - self.DE[agent][i].AM * self.DE[agent][i].PR * tx_ambiente * 0.1
+                        self.rw_va += self.DE[agent][i].AM * self.DE[agent][i].PR * self.DE[agent][i].VA
+                        # - self.DE[agent][i].AM * self.DE[agent][i].PR * tx_ambiente * 0.1
+                        self.rw_su += self.DE[agent][i].AM * self.DE[agent][i].PR * self.DE[agent][i].SU
+                        # - self.DE[agent][i].AM * self.DE[agent][i].PR * tx_ambiente * 0.1
                         # libera o espaço i para entrar outra demanda
-                        self.DE[i].ST = -1
+                        self.DE[agent][i].ST = -1
                         self.match[i] = 0
 
-    def stock_covers_demand(self):
+    def stock_covers_demand(self, agent):
         covered = True
         for i in range(self.N):
-            if self.DE[i].ST == 0: # status RECEIVED
-                DF = self.BA - self.DE[i].FT
+            if self.DE[agent][i].ST == 0: # status RECEIVED
+                DF = self.BA - self.DE[agent][i].FT
                 OR = np.array(
                     [abs(i) if i < 0 else 0 for i in DF]
                 )  # O QUE PRECISA SER COMPRADO
                 # print('\n ORDER from ', DF, ':', OR)
                 if not np.any(OR):
-                    self.DE[i].ST = 1
+                    self.DE[agent][i].ST = 1
                     # fila de prioridade 0 = price
-                    Somn.priorq[0][i] = 1/(self.DE[i].AM * self.DE[i].PR)
+                    Somn.priorq[0][i] = 1/(self.DE[agent][i].AM * self.DE[agent][i].PR)
                     # fila de prioridade 1 = variabilidade
-                    Somn.priorq[1][i] = 1 - self.DE[i].VA
+                    Somn.priorq[1][i] = 1 - self.DE[agent][i].VA
                     # fila de prioridade 2 = sustentabilidade
-                    Somn.priorq[2][i] = 1 - self.DE[i].SU
-                    # print ((1 - self.DE[i].SU))
+                    Somn.priorq[2][i] = 1 - self.DE[agent][i].SU
+                    # print ((1 - self.DE[agent][i].SU))
                     self.BA -= np.array(DF)  # ATUALIZA O SALDO
                     self.OU += np.array(DF)  # ATUALIZA A SAÍDA
                     # print('\n balance:', self.BA,  'because not buying',self.OU)
@@ -378,18 +381,18 @@ class Somn(ParallelEnv):
                     # print('\n balance: ', self.BA, 'because buying',OR, 'accumulating', self.IN)
         return covered
 
-    def order_receive_and_match(self):
+    def order_receive_and_match(self, agent):
         covered = False
         # receive RAW MATERIAL AND ORDERS (DEMANDS)
         self.MT = np.array([random.randint(0, i) if i > 0 else 0 for i in self.IN])
-        self.readDemand()
+        self.readDemand(agent)
         # IF PREVIOUS ORDERS INVENTORY AVAILABLE, PLEASE DISPATCH
-        self.match_demand_with_inventory()
+        self.match_demand_with_inventory(agent)
         # ANYWAY, UPDATE BALANCE AND INCOME RAW MATERIAL REGARDING MT RECEIVED
         self.IN -= self.MT
         self.BA += self.MT
         # IF RAW MATERIAL INVENTORY DOES NOT COVER PLEASE REQUEST RAW MATERIAL
-        if not self.stock_covers_demand():
+        if not self.stock_covers_demand(agent):
             self.IN = np.array(
                 [random.randint(0, i) if i > 0 else 0 for i in self.IN]
             ).astype(np.int64)
@@ -412,48 +415,48 @@ class Somn(ParallelEnv):
                     
                     # COPY JOB TO JOBSHOP SCHEDULING
                     # for j in range(self.M):
-                    #     if self.DE[i].FT[j]!= 0:
-                    #         Somn.instance.InsertJobs(i, j, self.DE[i].FT[j])
+                    #     if self.DE[agent][i].FT[j]!= 0:
+                    #         Somn.instance.InsertJobs(i, j, self.DE[agent][i].FT[j])
                     #         flag = 1
 
                     # salva o valor do patio depois da acao
                     self.patio_on_state_plan.append((self.YA.cont/self.YA.Y)*100)
                     # salva o valor da carga depois da acao
-                    self.carga_on_state_plan.append(sum([self.DE[i].ST == 3 for i in range(self.N)]))
+                    self.carga_on_state_plan.append(sum([self.DE[agent][i].ST == 3 for i in range(self.N)]))
                     # salva a acao
-                    self.DE[i].action = action
+                    self.DE[agent][i].action = action
                     self.acao_on_state_plan.append(action)
                     
 
                     
 
                     # executa a acao
-                    if self.DE[i].DO > (t + self.DE[i].LT + action):
-                        self.DE[i].ST = 3  ## produced status --- remember to run time for each case
-                        self.OU += self.DE[i].FT  ## CONSOME OS RECURSOS
+                    if self.DE[agent][i].DO > (t + self.DE[agent][i].LT + action):
+                        self.DE[agent][i].ST = 3  ## produced status --- remember to run time for each case
+                        self.OU += self.DE[agent][i].FT  ## CONSOME OS RECURSOS
                         Demand.load = Demand.load + 1
-                        self.DE[i].real_LT = poisson.rvs(mu=(self.DE[i].LT+Demand.load)) # by_frederic
-                        self.DE[i].TP = t + self.DE[i].real_LT
-                        self.DE[i].atraso_real = abs(self.DE[i].real_LT - self.DE[i].LT)
-                        self.DE[i].err = abs(self.DE[i].action - self.DE[i].atraso_real)
+                        self.DE[agent][i].real_LT = poisson.rvs(mu=(self.DE[agent][i].LT+Demand.load)) # by_frederic
+                        self.DE[agent][i].TP = t + self.DE[agent][i].real_LT
+                        self.DE[agent][i].atraso_real = abs(self.DE[agent][i].real_LT - self.DE[agent][i].LT)
+                        self.DE[agent][i].err = abs(self.DE[agent][i].action - self.DE[agent][i].atraso_real)
                         
-                        self.acoes.append(self.DE[i].action)
-                        self.atrasos_reais.append(self.DE[i].atraso_real)
-                        self.variabilidade.append(self.DE[i].VA)
-                        self.sustentabilidade.append(self.DE[i].SU)
-                        self.F.append(self.DE[i].F)
+                        self.acoes.append(self.DE[agent][i].action)
+                        self.atrasos_reais.append(self.DE[agent][i].atraso_real)
+                        self.variabilidade.append(self.DE[agent][i].VA)
+                        self.sustentabilidade.append(self.DE[agent][i].SU)
+                        self.F.append(self.DE[agent][i].F)
                     else:
-                        self.DE[i].ST = 2  ## rejected status
-                        self.OU -= self.DE[i].FT  ### libera do buffer de produção
-                        self.BA += self.DE[i].FT  ## devolve para o saldo para os próximos
+                        self.DE[agent][i].ST = 2  ## rejected status
+                        self.OU -= self.DE[agent][i].FT  ### libera do buffer de produção
+                        self.BA += self.DE[agent][i].FT  ## devolve para o saldo para os próximos
                         Demand.reject = Demand.reject + 1
                         # se a demanda tivesse sido produzida, teria tido esse real_LT, TP, atraso_real e err abaixo
                         # valores calculados só para salvar no log e avaliar o modelo
-                        self.DE[i].real_LT = poisson.rvs(mu=(self.DE[i].LT + Demand.load))
-                        self.DE[i].TP = t + self.DE[i].real_LT
-                        self.DE[i].atraso_real = abs(self.DE[i].real_LT - self.DE[i].LT)
-                        self.DE[i].err = abs(self.DE[i].action - self.DE[i].atraso_real)
-                        # self.atrasos_reais.append(self.DE[i].atraso_real)
+                        self.DE[agent][i].real_LT = poisson.rvs(mu=(self.DE[agent][i].LT + Demand.load))
+                        self.DE[agent][i].TP = t + self.DE[agent][i].real_LT
+                        self.DE[agent][i].atraso_real = abs(self.DE[agent][i].real_LT - self.DE[agent][i].LT)
+                        self.DE[agent][i].err = abs(self.DE[agent][i].action - self.DE[agent][i].atraso_real)
+                        # self.atrasos_reais.append(self.DE[agent][i].atraso_real)
 
         # se formou buffer, resolve para comparar depois
         # if flag == 1:
@@ -461,77 +464,77 @@ class Somn(ParallelEnv):
         #   Somn.instance.Solve()
         #   Somn.instance.Output()  ## precisa salvar a lista de resultados
 
-    def produce(self, t: int, i: int):
+    def produce(self, t: int, i: int, agent):
         
-        if self.DE[i].ST == 3:
-            if self.DE[i].TP < t:  ### TP eh resultado de LT(#f) + RAND
+        if self.DE[agent][i].ST == 3:
+            if self.DE[agent][i].TP < t:  ### TP eh resultado de LT(#f) + RAND
                 #Somn.producing = Somn.producing - 1
                 Demand.load = Demand.load - 1
-                if t < self.DE[i].DO:
-                    self.DE[i].ST = 5  ## produced status --- remember to run time for each case
+                if t < self.DE[agent][i].DO:
+                    self.DE[agent][i].ST = 5  ## produced status --- remember to run time for each case
                     # print("\n Destination: Enviou", Yard.cont)
                 else:
-                    self.DE[i].ST = 4  ## stored status
+                    self.DE[agent][i].ST = 4  ## stored status
                     
                     # VALIDAÇÃO DE TESTE PARA YARD = 0 #####################################################
                     if self.Y == 0:
-                        self.DE[i].ST = -2  ## NAO CABE ... PRODUCAO COM GERAÇÃO DE LIXO (CASO MAIS GRAVE)
+                        self.DE[agent][i].ST = -2  ## NAO CABE ... PRODUCAO COM GERAÇÃO DE LIXO (CASO MAIS GRAVE)
                         # production with waste
                         Demand.production_w_waste = Demand.production_w_waste + 1
 
                     elif self.YA.cont < self.YA.Y:
-                        self.YA.yard.append(self.DE[i].FT)
+                        self.YA.yard.append(self.DE[agent][i].FT)
 
-                        mask_YA = self.DE[i].FT.copy()
+                        mask_YA = self.DE[agent][i].FT.copy()
                         mask_YA[mask_YA > 0] = 1
 
                         self.YA.mask_YA.append(mask_YA)
                         self.YA.cont = len(self.YA.yard)
                         
                     else:
-                        self.DE[i].ST = -2  ## NAO CABE ... PRODUCAO COM GERAÇÃO DE LIXO (CASO MAIS GRAVE)
+                        self.DE[agent][i].ST = -2  ## NAO CABE ... PRODUCAO COM GERAÇÃO DE LIXO (CASO MAIS GRAVE)
                         # production with waste
                         Demand.production_w_waste = Demand.production_w_waste + 1
 
-    def dispatch(self, i: int):
+    def dispatch(self, i: int, agent):
              
-        if self.DE[i].ST == 5:
+        if self.DE[agent][i].ST == 5:
             
-            self.rw_pr += self.DE[i].AM * self.DE[i].PR
-            self.rw_va += self.DE[i].AM * self.DE[i].PR * self.DE[i].VA
-            self.rw_su += self.DE[i].AM * self.DE[i].PR * self.DE[i].SU
+            self.rw_pr += self.DE[agent][i].AM * self.DE[agent][i].PR
+            self.rw_va += self.DE[agent][i].AM * self.DE[agent][i].PR * self.DE[agent][i].VA
+            self.rw_su += self.DE[agent][i].AM * self.DE[agent][i].PR * self.DE[agent][i].SU
 
-            self.DE[i].ST = -1  # LIBERA O ESPAÇO APÓS CONTABILIZADO
+            self.DE[agent][i].ST = -1  # LIBERA O ESPAÇO APÓS CONTABILIZADO
             self.match[i] = 0
 
-    def store(self, i: int):
-        if self.DE[i].ST == 4:
-            self.totPenalty += (self.YA.cont/self.YA.space) * self.DE[i].AM * self.DE[i].CO
-            tx_ambiente = self.DE[i].err
-            self.totPenalty += self.DE[i].AM * self.DE[i].PR * tx_ambiente * 0.01
-            self.totPenalty2 += self.DE[i].AM * self.DE[i].PR * tx_ambiente * 0.01
+    def store(self, i: int, agent):
+        if self.DE[agent][i].ST == 4:
+            self.totPenalty += (self.YA.cont/self.YA.space) * self.DE[agent][i].AM * self.DE[agent][i].CO
+            tx_ambiente = self.DE[agent][i].err
+            self.totPenalty += self.DE[agent][i].AM * self.DE[agent][i].PR * tx_ambiente * 0.01
+            self.totPenalty2 += self.DE[agent][i].AM * self.DE[agent][i].PR * tx_ambiente * 0.01
                 
-            self.DE[i].ST = -1  # LIBERA O ESPAÇO APÓS CONTABILIZADO
+            self.DE[agent][i].ST = -1  # LIBERA O ESPAÇO APÓS CONTABILIZADO
             self.match[i] = 0
             
-    def reject(self, i: int):
-        if self.DE[i].ST == 2:
+    def reject(self, i: int, agent):
+        if self.DE[agent][i].ST == 2:
             self.totPenalty += 0
-            tx_ambiente = self.DE[i].err
-            self.totPenalty += self.DE[i].AM * self.DE[i].PR * tx_ambiente * 0.01
-            self.totPenalty2 += self.DE[i].AM * self.DE[i].PR * tx_ambiente * 0.005
+            tx_ambiente = self.DE[agent][i].err
+            self.totPenalty += self.DE[agent][i].AM * self.DE[agent][i].PR * tx_ambiente * 0.01
+            self.totPenalty2 += self.DE[agent][i].AM * self.DE[agent][i].PR * tx_ambiente * 0.005
             
-            self.DE[i].ST = -1  # LIBERA O ESPAÇO APÓS CONTABILIZADO
+            self.DE[agent][i].ST = -1  # LIBERA O ESPAÇO APÓS CONTABILIZADO
             self.match[i] = 0
                 
-    def reject_w_waste(self, i: int):
-        if self.DE[i].ST == -2:
-            self.totPenalty += self.DE[i].AM * self.DE[i].CO         # PENALIDADE PELO DESCARTE
-            tx_ambiente = self.DE[i].err
-            self.totPenalty += self.DE[i].AM * self.DE[i].PR * tx_ambiente * 0.1
-            self.totPenalty2 += self.DE[i].AM * self.DE[i].PR * tx_ambiente * 0.1
+    def reject_w_waste(self, i: int, agent):
+        if self.DE[agent][i].ST == -2:
+            self.totPenalty += self.DE[agent][i].AM * self.DE[agent][i].CO         # PENALIDADE PELO DESCARTE
+            tx_ambiente = self.DE[agent][i].err
+            self.totPenalty += self.DE[agent][i].AM * self.DE[agent][i].PR * tx_ambiente * 0.1
+            self.totPenalty2 += self.DE[agent][i].AM * self.DE[agent][i].PR * tx_ambiente * 0.1
             
-            self.DE[i].ST = -1  # LIBERA O ESPAÇO APÓS CONTABILIZADO
+            self.DE[agent][i].ST = -1  # LIBERA O ESPAÇO APÓS CONTABILIZADO
             self.match[i] = 0
     
     def atualiza_upper_bounds(self):
@@ -548,38 +551,38 @@ class Somn(ParallelEnv):
         if np.amax(self.ub_OU) <= np.amax(self.OU):
             self.ub_OU = np.full(self.M, np.amax(self.OU))
     
-    def observa_demanda(self):
+    def observa_demanda(self, agent):
         DE_arrayState = []
         FT_arrayState = []
 
         for i in range(self.N):
             aux_row = [
-                self.normaliza(x=self.DE[i].ST, min=self.lb_ST, max=self.ub_ST),
+                self.normaliza(x=self.DE[agent][i].ST, min=self.lb_ST, max=self.ub_ST),
 
-                self.normaliza(x=self.DE[i].DI, min=self.lb_DI, max=self.ub_DI),
-                self.normaliza(x=self.DE[i].DO, min=self.lb_DO, max=self.ub_DO),
-                self.normaliza(x=self.DE[i].TP, min=self.lb_TP, max=self.ub_TP),
+                self.normaliza(x=self.DE[agent][i].DI, min=self.lb_DI, max=self.ub_DI),
+                self.normaliza(x=self.DE[agent][i].DO, min=self.lb_DO, max=self.ub_DO),
+                self.normaliza(x=self.DE[agent][i].TP, min=self.lb_TP, max=self.ub_TP),
 
-                self.normaliza(x=self.DE[i].PR, min=self.lb_PR, max=self.ub_PR),
-                self.normaliza(x=self.DE[i].CO, min=self.lb_CO, max=self.ub_CO),
-                self.normaliza(x=self.DE[i].AM, min=self.lb_AM, max=self.ub_AM),
-                self.normaliza(x=self.DE[i].SP, min=self.lb_SP, max=self.ub_SP),
-                self.normaliza(x=self.DE[i].PE, min=self.lb_PE, max=self.ub_PE),
+                self.normaliza(x=self.DE[agent][i].PR, min=self.lb_PR, max=self.ub_PR),
+                self.normaliza(x=self.DE[agent][i].CO, min=self.lb_CO, max=self.ub_CO),
+                self.normaliza(x=self.DE[agent][i].AM, min=self.lb_AM, max=self.ub_AM),
+                self.normaliza(x=self.DE[agent][i].SP, min=self.lb_SP, max=self.ub_SP),
+                self.normaliza(x=self.DE[agent][i].PE, min=self.lb_PE, max=self.ub_PE),
 
-                self.normaliza(x=self.DE[i].VA, min=self.lb_VA, max=self.ub_VA),
-                self.normaliza(x=self.DE[i].SU, min=self.lb_SU, max=self.ub_SU),
-                self.normaliza(x=self.DE[i].F, min=self.lb_F, max=self.ub_F), 
+                self.normaliza(x=self.DE[agent][i].VA, min=self.lb_VA, max=self.ub_VA),
+                self.normaliza(x=self.DE[agent][i].SU, min=self.lb_SU, max=self.ub_SU),
+                self.normaliza(x=self.DE[agent][i].F, min=self.lb_F, max=self.ub_F), 
                 
-                self.normaliza(x=self.DE[i].LT, min=self.lb_LT, max=self.ub_LT),
-                self.normaliza(x=self.DE[i].real_LT, min=self.lb_real_LT, max=self.ub_real_LT), 
-                self.normaliza(x=self.DE[i].atraso_real, min=self.lb_atraso_real, max=self.ub_atraso_real), 
-                self.normaliza(x=self.DE[i].action, min=self.lb_action, max=self.ub_action), 
-                self.normaliza(x=self.DE[i].err, min=self.lb_err, max=self.ub_err), 
+                self.normaliza(x=self.DE[agent][i].LT, min=self.lb_LT, max=self.ub_LT),
+                self.normaliza(x=self.DE[agent][i].real_LT, min=self.lb_real_LT, max=self.ub_real_LT), 
+                self.normaliza(x=self.DE[agent][i].atraso_real, min=self.lb_atraso_real, max=self.ub_atraso_real), 
+                self.normaliza(x=self.DE[agent][i].action, min=self.lb_action, max=self.ub_action), 
+                self.normaliza(x=self.DE[agent][i].err, min=self.lb_err, max=self.ub_err), 
 
             ]
             DE_arrayState.append(aux_row)
         for i in range(self.N):
-            aux_FT = self.normaliza(x=self.DE[i].FT, min=self.lb_FT, max=self.ub_FT)
+            aux_FT = self.normaliza(x=self.DE[agent][i].FT, min=self.lb_FT, max=self.ub_FT)
             FT_arrayState.append(aux_FT)
         
         self.DE_state = np.array(DE_arrayState)
@@ -654,27 +657,27 @@ class Somn(ParallelEnv):
             if len(Somn.priorq[Somn.objetivo]) == 0:
                 covered = False
                 while not covered:
-                    covered = self.order_receive_and_match()
+                    covered = self.order_receive_and_match(agent)
                     
-            self.plan(Somn.time, action, agent)
+            self.plan(Somn.time[agent], action, agent)
             for i in range(Demand.N):
-                self.produce(Somn.time, i)
-                self.dispatch(i)
-                self.store(i)
-                self.reject(i)
-                self.reject_w_waste(i)
+                self.produce(Somn.time[agent], i, agent)
+                self.dispatch(i, agent)
+                self.store(i, agent)
+                self.reject(i, agent)
+                self.reject_w_waste(i, agent)
 
             if Somn.objetivo == 0: # lucro
                 self.totReward = self.rw_pr
-                self.reward[agent] = self.totReward - self.totPenalty
+                self.reward[f"{agent}"] = self.totReward - self.totPenalty
                 self.penalty[agent] = self.totPenalty
             if Somn.objetivo == 1: # variabilidade
                 self.totReward = self.rw_va
-                self.reward[agent] = self.totReward - self.totPenalty2
+                self.reward[f"{agent}"] = self.totReward - self.totPenalty2
                 self.penalty[agent] = self.totPenalty2
             if Somn.objetivo == 2: # sustentabilidade
                 self.totReward = self.rw_su
-                self.reward[agent] = self.totReward - self.totPenalty2
+                self.reward[f"{agent}"] = self.totReward - self.totPenalty2
                 self.penalty[agent] = self.totPenalty2
             
             # desconta as penalidades
@@ -704,18 +707,18 @@ class Somn(ParallelEnv):
             # self.wandb_log_func()
 
             # condição de parada
-            done[agent] = False
-            truncated[agent] = False
-            if Somn.time >= self.ub_time:  # 10*Demand.MAXDO + Demand.M   (TEMPOMAX)
+            done[f"{agent}"] = False
+            truncated[f"{agent}"] = False
+            if Somn.time[agent] >= self.ub_time:  # 10*Demand.MAXDO + Demand.M   (TEMPOMAX)
                 # print('\n D -- O -- N -- E --', self.DE_state)
-                done[agent] = True
+                done[f"{agent}"] = True
 
             # atualiza o upper bounds de MT, BA, IN e OU
             self.atualiza_upper_bounds()
         
             # Informações adicionais
             
-            info[agent] = {"rw": self.reward[agent],
+            info[f"{agent}"] = {"rw": self.reward[f"{agent}"],
                     "rw_pr": self.rw_pr,
                     "rw_va": self.rw_va,
                     "rw_su": self.rw_su,
@@ -730,9 +733,9 @@ class Somn(ParallelEnv):
                     }  
             
             # observação
-            self.DE_state, self.FT_state = self.observa_demanda()
-            observation[agent] = {
-                "time": np.array([self.normaliza(self.time, self.lb_time, self.ub_time)]),
+            self.DE_state, self.FT_state = self.observa_demanda(agent)
+            observation[f"{agent}"] = {
+                "time": np.array([self.normaliza(self.time[agent], self.lb_time, self.ub_time)]),
                 "MT": self.normaliza(self.MT, self.lb_MT, self.ub_MT),
                 "EU": self.normaliza(self.EU, self.lb_EU, self.ub_EU),
                 "BA": self.normaliza(self.BA, self.lb_BA, self.ub_BA),
@@ -747,7 +750,7 @@ class Somn(ParallelEnv):
 
             # se não tiver mais demandas na fila de prioridade atualiza o tempo
             #if len(Somn.priorq[Somn.objetivo]) == 0:
-            Somn.time += 1
+            Somn.time[agent] += 1
 
         return (
             observation,
@@ -783,8 +786,9 @@ class Somn(ParallelEnv):
         #     'reject_w_waste Somn' : Demand.reject_w_waste
         # })
 
+        for agent in range(len(self.agents)):
+            Somn.time[agent] = 1
 
-        Somn.time = 1
         self.reward = {}
         self.penalty = {}
         self.totReward = 0.0
@@ -806,7 +810,7 @@ class Somn(ParallelEnv):
         for agent in range(len(self.agents)):
             agentDemands = [
                 Demand(
-                    self.M, self.N, self.MAXDO, self.MAXAM, self.MAXPR, self.MAXPE, self.MAXFT, self.MAXMT, self.MAXTI, self.MAXEU, Somn.time, self.atraso
+                    self.M, self.N, self.MAXDO, self.MAXAM, self.MAXPR, self.MAXPE, self.MAXFT, self.MAXMT, self.MAXTI, self.MAXEU, Somn.time[agent], self.atraso
                 )
                 for _ in range(self.N)
             ]
@@ -816,30 +820,34 @@ class Somn(ParallelEnv):
         # tira todas as demandas de FREE(-1) para READY(0)
         for agent in range(len(self.agents)):
             for i in range(self.N):
-                self.DE[agent][i](Somn.time)
+                self.DE[agent][i](Somn.time[agent])
+
+            self.DE_state, self.FT_state = self.observa_demanda(agent)
 
         
         #############################################################################################################################    
         info = {f"{i}" : {} for i in range(self.num_agents)}
         # observation = (self.DE_state, info)  # by_frederic: retorna quando o tipo é Box
-        self.DE_state, self.FT_state = self.observa_demanda()
-        observation = {
-            "time": np.array([self.normaliza(self.time, self.lb_time, self.ub_time)]),
-            "MT": self.normaliza(self.MT, self.lb_MT, self.ub_MT),
-            "EU": self.normaliza(self.EU, self.lb_EU, self.ub_EU),
-            "BA": self.normaliza(self.BA, self.lb_BA, self.ub_BA),
-            "IN": self.normaliza(self.IN, self.lb_IN, self.ub_IN),
-            "OU": self.normaliza(self.OU, self.lb_OU, self.ub_OU),
-            "DE_state": self.DE_state,
-            "FT_state": self.FT_state,
-            "yard": np.array([self.normaliza(self.YA.cont, self.lb_yard, self.ub_yard)]),
-            "load": np.array([self.normaliza(Demand.load, self.lb_load, self.ub_load)]),
-        }  # by_frederic: retorna quando e um tipo Dict
 
-        observation = {f"{i}" : observation for i in range(self.num_agents)}
+        observationParcial = {}
+        for agent in range(len(self.agents)):
+            observation = {
+                "time": np.array([self.normaliza(self.time[agent], self.lb_time, self.ub_time)]),
+                "MT": self.normaliza(self.MT, self.lb_MT, self.ub_MT),
+                "EU": self.normaliza(self.EU, self.lb_EU, self.ub_EU),
+                "BA": self.normaliza(self.BA, self.lb_BA, self.ub_BA),
+                "IN": self.normaliza(self.IN, self.lb_IN, self.ub_IN),
+                "OU": self.normaliza(self.OU, self.lb_OU, self.ub_OU),
+                "DE_state": self.DE_state,
+                "FT_state": self.FT_state,
+                "yard": np.array([self.normaliza(self.YA.cont, self.lb_yard, self.ub_yard)]),
+                "load": np.array([self.normaliza(Demand.load, self.lb_load, self.ub_load)]),
+            }  # by_frederic: retorna quando e um tipo Dict
+
+            observationParcial[f"{agent}"] = observation
         ##############################################################################################################################
 
-        return (observation, info)  # by_alysson: para se adequar ao MultAgent
+        return (observationParcial, info)  # by_alysson: para se adequar ao MultAgent
 
     ######################
     #       render       #
