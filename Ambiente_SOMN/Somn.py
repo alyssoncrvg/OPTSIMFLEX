@@ -289,7 +289,7 @@ class Somn(ParallelEnv):
             }
         )  # versao para MultiInputPolicy Normalizada
 
-        self.observation_spaces = {f"{i}" : self.observation_spaces for i in range(numAgents)}
+        self.observation_spaces = spaces.Dict({f"{i}" : self.observation_spaces for i in range(numAgents)})
 
     ######################
     #      funcoes       #
@@ -322,7 +322,8 @@ class Somn(ParallelEnv):
         # se for um escalar evitar a divisao por zero.
         if type(x).__module__ != np.__name__:
             if max == min: return 1
-        x_norm = np.array((x - min) / (max - min)).astype(np.float64)
+        x_norm = (x - min) / (max - min)
+        x_norm = np.clip(x_norm, 0.0, 1.0).astype(np.float64)
         return x_norm
 
     def readDemand(self, agent):
