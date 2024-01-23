@@ -1,33 +1,62 @@
-from pettingzoo.test import parallel_api_test
-from ray.rllib.env.wrappers.pettingzoo_env import ParallelPettingZooEnv
-from ray.rllib.algorithms.ppo import PPOConfig
-from ray import tune
-from ray.tune.registry import register_env
-import ray
+import argparse
 
+from ray import air, tune
+from ray.tune.registry import register_env
+from ray.rllib.algorithms.ppo import PPOConfig
+from ray.rllib.env.wrappers.pettingzoo_env import ParallelPettingZooEnv, PettingZooEnv
+from pettingzoo.sisl import waterworld_v4
 from Ambiente_SOMN.make_env import make_env
 
-if __name__=="__main__":
-    ray.init()
+# Based on code from github.com/parametersharingmadrl/parametersharingmadrl
 
-    env_name = "SOMN"
+parser = argparse.ArgumentParser()
+parser.add_argument(
+    "--num-gpus",
+    type=int,
+    default=0,
+    help="Number of GPUs to use for training.",
+)
+parser.add_argument(
+    "--as-test",
+    action="store_true",
+    help="Whether this script should be run as a test: Only one episode will be "
+    "sampled.",
+)
 
-    register_env(env_name, lambda config: ParallelPettingZooEnv(make_env(0,3,0)))
+if __name__ == "__main__":
+    args = parser.parse_args()
+
+    def env_creator(args):
+        return ParallelPettingZooEnv(make_env(-1,2,0))
+        # return PettingZooEnv(waterworld_v4.env())
+
+    env = env_creator({})
+    register_env("waterworld", env_creator)
 
     config = (
         PPOConfig()
-        .environment(env=env_name)
-        .training(
-            train_batch_size=512,
-            lr=2e-5,
-            gamma=0.99,
+        .environment("waterworld")
+        .resources(num_gpus=args.num_gpus)
+        .rollouts(num_rollout_workers=0)
+        .multi_agent(
+            policies=env.get_agent_ids(),
+            policy_mapping_fn=(lambda agent_id, *args, **kwargs: agent_id),
         )
-        .framework(framework="torch")
     )
 
-    tune.run(
+    if args.as_test:
+        # Only a compilation test of running waterworld / independent learning.
+        stop = {"training_iteration": 1}
+    else:
+        stop = {"episodes_total": 60000}
+
+    tune.Tuner(
         "PPO",
-        name="PPO",
-        stop={"timesteps_total": 100},  
-        config=config.to_dict()
-    )
+        run_config=air.RunConfig(
+            stop=stop,
+            checkpoint_config=air.CheckpointConfig(
+                checkpoint_frequency=10,
+            ),
+        ),
+        param_space=config,
+    ).fit()

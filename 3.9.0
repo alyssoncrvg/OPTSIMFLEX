@@ -1,0 +1,13 @@
+Collecting supersuit
+  Using cached SuperSuit-3.9.1-py3-none-any.whl.metadata (3.0 kB)
+Requirement already satisfied: numpy>=1.19.0 in c:\users\alysson\documents\github\optsimflex\.venv\lib\site-packages (from supersuit) (1.26.3)
+Requirement already satisfied: gymnasium>=0.28.1 in c:\users\alysson\documents\github\optsimflex\.venv\lib\site-packages (from supersuit) (0.29.1)
+Collecting tinyscaler>=1.2.6 (from supersuit)
+  Using cached tinyscaler-1.2.7-cp310-cp310-win_amd64.whl.metadata (4.3 kB)
+Requirement already satisfied: cloudpickle>=1.2.0 in c:\users\alysson\documents\github\optsimflex\.venv\lib\site-packages (from gymnasium>=0.28.1->supersuit) (3.0.0)
+Requirement already satisfied: typing-extensions>=4.3.0 in c:\users\alysson\documents\github\optsimflex\.venv\lib\site-packages (from gymnasium>=0.28.1->supersuit) (4.9.0)
+Requirement already satisfied: farama-notifications>=0.0.1 in c:\users\alysson\documents\github\optsimflex\.venv\lib\site-packages (from gymnasium>=0.28.1->supersuit) (0.0.4)
+Using cached SuperSuit-3.9.1-py3-none-any.whl (50 kB)
+Using cached tinyscaler-1.2.7-cp310-cp310-win_amd64.whl (84 kB)
+Installing collected packages: tinyscaler, supersuit
+Successfully installed supersuit-3.9.1 tinyscaler-1.2.7

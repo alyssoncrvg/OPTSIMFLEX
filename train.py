@@ -1,97 +1,73 @@
-import wandb
-import yaml
+import argparse
 
-import os
-import time
-import random
-import numpy as np
-#import gym
-
-#from stable_baselines3 import PPO
-from stable_baselines3.common.monitor import Monitor
-#from stable_baselines3.common.vec_env import DummyVecEnv, VecVideoRecorder
-from Stablebaselines3.dummy_vec_env import DummyVecEnv
-
+from ray import air, tune
+from ray.tune.registry import register_env
+from ray.rllib.algorithms.ppo import PPOConfig
+from ray.rllib.env.wrappers.pettingzoo_env import ParallelPettingZooEnv
+from pettingzoo.sisl import waterworld_v4
 from Ambiente_SOMN.make_env import make_env
-from Stablebaselines3.PPO import PPO
-from Ambiente_SOMN.Yard import Yard
 
-# Initialize a new wandb run
-if len(wandb.patched["tensorboard"]) > 0:
-    wandb.tensorboard.unpatch()
-#wandb.tensorboard.patch(root_logdir="/content/drive/MyDrive/SOMN2/runs")
-wandb.tensorboard.patch(root_logdir="./runs")
+# Based on code from github.com/parametersharingmadrl/parametersharingmadrl
 
-# seed
-#random.seed(10)
-#np.random.seed(1)
-from Seed.Seed import seed_everything
+parser = argparse.ArgumentParser()
+parser.add_argument(
+    "--num-gpus",
+    type=int,
+    default=0,
+    help="Number of GPUs to use for training.",
+)
+parser.add_argument(
+    "--as-test",
+    action="store_true",
+    help="Whether this script should be run as a test: Only one episode will be "
+    "sampled.",
+)
 
-#seed_everything(2023)
+parser.add_argument(
+    "--num_agents",
+    type=int,
+    default=3
+)
 
-#atraso:int=None
-# objetivo = ["Lucro", "Variabilidade", "Sustentabiliade"]
-for atraso in range(-1,0,10):  ### ACMO USAR UMA COMBINAÇÃO QUE DESABILITE
-#    atraso = None
-    # config_PPO = {
-    #     'objetivo': 2, # 0: lucro, 1: variabilidade, 2: sustentabilidade
-    #     'atraso': atraso,
-    #     'batch_size': 256,
-    #     'ent_coef': 0.001641577520175419,
-    #     'gae_lambda': 0.9142950466044,
-    #     'gamma': 0.918623650457886,
-    #     'learning_rate': 0.0003660144793262825,
-    #     'n_epochs': 21,
-    #     'n_steps': 3328,
-    #     'target_kl': 0.02113910446426361
-    # }
+parser.add_argument(
+    "--objetivo",
+    type=int,
+    default=0
+)
 
-    # Set up your default hyperparameters
-    with open("./config.yaml") as file:
-        config = yaml.load(file, Loader=yaml.FullLoader)
+if __name__ == "__main__":
+    args = parser.parse_args()
 
-    for x in range(1):    #### ACMO NUMEROS DE EXECUÇÕES COMPETIDORAS
+    def env_creator(args):
+        return ParallelPettingZooEnv(make_env(-1, 3, 0))
 
-        
+    env = env_creator({})
+    register_env("SOMN", env_creator)
 
-        run1 = wandb.init(project="Sintonia de Parametros", #NOME DO PROJETO
-                          config=config,
-                          group="Priorizando Sustentabilidade", #GRUPOS A SEREM ADCIONADOS NO WANDB
-#                          name=f'custom-PPO-atraso_{atraso:02d}-run_{x+1:02d}',
-                          name="Sustentabilidade", #NOME DA EXECUÇÃO
-                          save_code=True,
-                          reinit=True
+    config = (
+        PPOConfig()
+        .environment("SOMN")
+        .resources(num_gpus=0)
+        .rollouts(num_rollout_workers=1)
+        .multi_agent(
+            policies=env.get_agent_ids(),
+            policy_mapping_fn=(lambda agent_id, *args, **kwargs: agent_id),
         )
+    )
 
+    if args.as_test:
+        # Only a compilation test of running waterworld / independent learning.
+        stop = {"training_iteration": 1}
+    else:
+        stop = {"episodes_total": 60000}
 
-        config = wandb.config
-        env1 = DummyVecEnv([lambda: make_env(config.atraso, config.objetivo)])
-
-        model = PPO(
-            policy="MultiInputPolicy",
-            env=env1,
-            learning_rate=config.learning_rate,
-            n_steps=config.n_steps,
-            batch_size=config.batch_size,
-            n_epochs=config.n_epochs,
-            gamma=config.gamma,
-            gae_lambda=config.gae_lambda,
-            #clip_range=config.clip_range,
-            ent_coef=config.ent_coef,
-            #vf_coef=config.vf_coef,
-            #max_grad_norm=config.max_grad_norm,
-            target_kl=config.target_kl,
-            #stats_window_size=config.stats_window_size,
-            verbose=0,
-            #seed = 2023,
-            device='cpu',
-            #tensorboard_log=f"/content/drive/MyDrive/SOMN2/runs/{run1.id}"
-            tensorboard_log=f"runs/{run1.id}"
-        )
-        
-
-        model.learn(total_timesteps=3328*301)
-        
-        # 1000 e verificar o tempo
-        model.save(os.path.join(wandb.run.dir, "model_sustentabilidade"))
-        wandb.finish()
+    tune.Tuner(
+        "PPO",
+        run_config=air.RunConfig(
+            stop=stop,
+            checkpoint_config=air.CheckpointConfig(
+                checkpoint_frequency=10,
+            ),
+        ),
+        param_space=config,
+    ).fit()

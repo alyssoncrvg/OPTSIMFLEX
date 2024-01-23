@@ -47,8 +47,11 @@ FINAL_STATES = [REJECTED_W_WASTE, REJECTED, STORED, DELIVERED]
 
 class Somn(ParallelEnv):
 
+
     metadata = {
-        "name": "SOMN",
+        "render_mode": ["human", "rgb_array"],
+        "name": "waterworld_v4",
+        "is_parallelizable": True
     }
 
     """Custom Environment that follows gym interface."""
@@ -72,6 +75,8 @@ class Somn(ParallelEnv):
     ):
         super(Somn).__init__()
 
+        
+
         Somn.obj_list = ['pr', 'va', 'su']
         Somn.priorq = [heapdict() for objetivo in Somn.obj_list]
         Somn.objetivo = objetivo
@@ -84,7 +89,7 @@ class Somn(ParallelEnv):
             Somn.time.append(1)
 
         ##########################################################################
-        self.agents = [f'{i}' for i in range(numAgents)]
+        self.agents = {f'{i}' for i in range(numAgents)}
         self.possible_agents = [f'{i}' for i in range(numAgents)] #LISTA DOS AGENTES
         ##########################################################################
         
@@ -111,7 +116,12 @@ class Somn(ParallelEnv):
         self.patio_on_state_plan = []
         self.carga_on_state_plan = []
         
-        self.match = np.zeros(N)
+        ###################################################################################
+        self.match = []
+
+        for i in range(numAgents):
+            self.match.append(np.zeros(N))
+        ###################################################################################
 
         self.M = M
         self.N = N
@@ -330,7 +340,7 @@ class Somn(ParallelEnv):
         for i in range(Demand.N):
             if (self.DE[agent][i].ST == -1):  # free(-1)
                 self.DE[agent][i](Somn.time[agent])
-                self.match[i] = 0
+                self.match[agent][i] = 0
     
     def match_demand_with_inventory(self, agent) -> bool:
         for i in range(Demand.N):
@@ -351,7 +361,7 @@ class Somn(ParallelEnv):
                         # - self.DE[agent][i].AM * self.DE[agent][i].PR * tx_ambiente * 0.1
                         # libera o espaço i para entrar outra demanda
                         self.DE[agent][i].ST = -1
-                        self.match[i] = 0
+                        self.match[agent][i] = 0
 
     def stock_covers_demand(self, agent):
         covered = True
@@ -374,11 +384,11 @@ class Somn(ParallelEnv):
                     self.BA -= np.array(DF)  # ATUALIZA O SALDO
                     self.OU += np.array(DF)  # ATUALIZA A SAÍDA
                     # print('\n balance:', self.BA,  'because not buying',self.OU)
-                    self.match[i] = 1
+                    self.match[agent][i] = 1
                 else:
                     covered = False
                     self.IN += np.array(OR)  # ATUALIZA O TOTAL DE COMPRAVEIScl
-                    self.match[i] = 0
+                    self.match[agent][i] = 0
                     # print('\n balance: ', self.BA, 'because buying',OR, 'accumulating', self.IN)
         return covered
 
@@ -397,7 +407,7 @@ class Somn(ParallelEnv):
             self.IN = np.array(
                 [random.randint(0, i) if i > 0 else 0 for i in self.IN]
             ).astype(np.int64)
-        if self.match.all():
+        if self.match[agent].all():
             covered = True
         return covered
     
@@ -506,7 +516,7 @@ class Somn(ParallelEnv):
             self.rw_su += self.DE[agent][i].AM * self.DE[agent][i].PR * self.DE[agent][i].SU
 
             self.DE[agent][i].ST = -1  # LIBERA O ESPAÇO APÓS CONTABILIZADO
-            self.match[i] = 0
+            self.match[agent][i] = 0
 
     def store(self, i: int, agent):
         if self.DE[agent][i].ST == 4:
@@ -516,7 +526,7 @@ class Somn(ParallelEnv):
             self.totPenalty2 += self.DE[agent][i].AM * self.DE[agent][i].PR * tx_ambiente * 0.01
                 
             self.DE[agent][i].ST = -1  # LIBERA O ESPAÇO APÓS CONTABILIZADO
-            self.match[i] = 0
+            self.match[agent][i] = 0
             
     def reject(self, i: int, agent):
         if self.DE[agent][i].ST == 2:
@@ -526,7 +536,7 @@ class Somn(ParallelEnv):
             self.totPenalty2 += self.DE[agent][i].AM * self.DE[agent][i].PR * tx_ambiente * 0.005
             
             self.DE[agent][i].ST = -1  # LIBERA O ESPAÇO APÓS CONTABILIZADO
-            self.match[i] = 0
+            self.match[agent][i] = 0
                 
     def reject_w_waste(self, i: int, agent):
         if self.DE[agent][i].ST == -2:
@@ -536,7 +546,7 @@ class Somn(ParallelEnv):
             self.totPenalty2 += self.DE[agent][i].AM * self.DE[agent][i].PR * tx_ambiente * 0.1
             
             self.DE[agent][i].ST = -1  # LIBERA O ESPAÇO APÓS CONTABILIZADO
-            self.match[i] = 0
+            self.match[agent][i] = 0
     
     def atualiza_upper_bounds(self):
         # Atualiza o upper bounds
@@ -625,11 +635,11 @@ class Somn(ParallelEnv):
         Primeira versão vai fazer uma iteração para cada episódio ...
         O Tempo t precisa ser controlado
         """
-
-        info = {}
-        observation = {}
-        done = {}
-        truncated = {}
+    
+        info = {f"{i}" : {} for i in range(len(self.possible_agents))}
+        observation = {f"{i}" : {} for i in range(len(self.possible_agents))}
+        done = {f"{i}": {} for i in range(len(self.possible_agents))}
+        truncated = {f"{i}" : {} for i in range(len(self.possible_agents))}
 
         for agent, action in enumerate(actions.values()):
 
@@ -657,6 +667,7 @@ class Somn(ParallelEnv):
             # entra em order_receive_and_match() senao pula para plan()
             if len(Somn.priorq[Somn.objetivo]) == 0:
                 covered = False
+                #PROBLEMA
                 while not covered:
                     covered = self.order_receive_and_match(agent)
                     
@@ -711,7 +722,7 @@ class Somn(ParallelEnv):
             done[f"{agent}"] = False
             truncated[f"{agent}"] = False
             if Somn.time[agent] >= self.ub_time:  # 10*Demand.MAXDO + Demand.M   (TEMPOMAX)
-                # print('\n D -- O -- N -- E --', self.DE_state)
+                self.agents.remove(f"{agent}")
                 done[f"{agent}"] = True
 
             # atualiza o upper bounds de MT, BA, IN e OU
@@ -753,6 +764,8 @@ class Somn(ParallelEnv):
             #if len(Somn.priorq[Somn.objetivo]) == 0:
             Somn.time[agent] += 1
 
+        if observation == {}:
+            print("\n\n\nVAZIOOOOOOOOOOOOOOOOOO\n\n\n")
         return (
             observation,
             self.reward,
@@ -768,13 +781,16 @@ class Somn(ParallelEnv):
     def reset(self, *, seed=None, options=None):
         #super().reset(seed=None)
 
-        self.possible_agents = self.possible_agents[:]
+        self.agents = self.possible_agents[:]
         
         Somn.priorq = [heapdict() for objetivo in Somn.obj_list]
         # Somn.priorqsu = heapdict()
         # Somn.priorqva = heapdict()
 
-        self.match = np.zeros(self.N)
+        self.match = []
+
+        for i in range(len(self.possible_agents)):
+            self.match.append(np.zeros(self.N))
 
         self.MT = np.random.randint(0, self.MAXFT, self.M)
         self.EU = np.random.random(self.M) * self.MAXEU
@@ -864,3 +880,22 @@ class Somn(ParallelEnv):
 
     def close(self):
         pass
+
+    def observation_space(self, agent):
+        """Takes in agent and returns the observation space for that agent.
+
+        MUST return the same value for the same agent name
+
+        Default implementation is to return the observation_spaces dict
+        """
+        return self.observation_spaces[agent]
+
+    def action_space(self, agent):
+        """Takes in agent and returns the action space for that agent.
+
+        MUST return the same value for the same agent name
+
+        Default implementation is to return the action_spaces dict
+        """
+    
+        return self.action_spaces[agent]
