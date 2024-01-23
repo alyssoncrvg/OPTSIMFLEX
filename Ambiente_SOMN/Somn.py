@@ -17,7 +17,7 @@ import numpy as np
 from absl import flags
 from scipy.stats import poisson
 import torch
-# import wandb
+import wandb
 
 #############################################################
 from pettingzoo import ParallelEnv
@@ -414,7 +414,7 @@ class Somn(ParallelEnv):
     def plan(self, t: int, action, agent):
         
         # wandb.log({
-        #     'Tamanho da fila de prioridade' : len(Somn.priorq[Somn.objetivo]),
+        #     f'Tamanho da fila de prioridade agente {agent}' : len(Somn.priorq[Somn.objetivo]),
         # })
 
         if len(Somn.priorq[Somn.objetivo]) > 0:
@@ -601,22 +601,22 @@ class Somn(ParallelEnv):
 
         return self.DE_state, self.FT_state
 
-    # def wandb_log_func(self):
+    # def wandb_log_func(self, agent):
     #             #GRÁFICO PENALIDADE
     #     wandb.log({
-    #         'Penalidade' : self.penalty,
+    #         f'Penalidade agente {agent}' : self.penalty[agent],
     #     })
     #     # Gera grafico do Yard (by_frederic)
 
     #     #INFORMAÇÃO APENAS DE COMO ACABA O EPISÓDIO, BUSCAR LOCAL PARA RECEBER MELHOR INFORMAÇÃO
     #     if self.Y > 0:
     #         wandb.log({
-    #             'Yard': (self.YA.cont/self.YA.Y)*100,           
+    #             f'Yard agente {agent}': (self.YA[agent].cont/self.YA.Y)*100,           
     #         })
 
     #     else: #APENAS MOSTRANDO O YARD COMPLETAMENTE CHEIO CASO ELE SEJA 0
     #         wandb.log({
-    #             'Yard' : 100,
+    #             f'Yard agente {agent}' : 100,
     #         })
 
 

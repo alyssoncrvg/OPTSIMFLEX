@@ -4,8 +4,9 @@ from ray import air, tune
 from ray.tune.registry import register_env
 from ray.rllib.algorithms.ppo import PPOConfig
 from ray.rllib.env.wrappers.pettingzoo_env import ParallelPettingZooEnv
-from pettingzoo.sisl import waterworld_v4
 from Ambiente_SOMN.make_env import make_env
+
+from ray.air.integrations.wandb import WandbLoggerCallback
 
 # Based on code from github.com/parametersharingmadrl/parametersharingmadrl
 
@@ -38,8 +39,25 @@ parser.add_argument(
 if __name__ == "__main__":
     args = parser.parse_args()
 
+    # Initialize a new wandb run
+    # if len(wandb.patched["tensorboard"]) > 0:
+    #     wandb.tensorboard.unpatch()
+    # wandb.tensorboard.patch(root_logdir="./runs")
+
+    # with open("./config.yaml") as file:
+    #     configWandb = yaml.load(file, Loader=yaml.FullLoader)
+
     def env_creator(args):
         return ParallelPettingZooEnv(make_env(-1, 3, 0))
+    
+#     wandb.init(project="Treinamento multi-agent", #NOME DO PROJETO
+#         config=configWandb,
+#         group="Testes", #GRUPOS A SEREM ADCIONADOS NO WANDB
+# #                          name=f'custom-PPO-atraso_{atraso:02d}-run_{x+1:02d}',
+#         name="teste", #NOME DA EXECUÇÃO
+#         save_code=True,
+#         reinit=True
+#     )
 
     env = env_creator({})
     register_env("SOMN", env_creator)
@@ -68,6 +86,7 @@ if __name__ == "__main__":
             checkpoint_config=air.CheckpointConfig(
                 checkpoint_frequency=10,
             ),
+            callbacks=[WandbLoggerCallback(project="Treinamento multi-agent")]
         ),
         param_space=config,
     ).fit()
