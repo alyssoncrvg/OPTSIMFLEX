@@ -1,116 +1,202 @@
+from typing import Dict, Tuple
 import argparse
+import gymnasium as gym
+import numpy as np
 import os
-import random
 
 import ray
-from ray import tune, air
+from ray import air, tune
+from ray.rllib.algorithms.callbacks import DefaultCallbacks
 from ray.rllib.algorithms.ppo import PPOConfig
-from ray.rllib.examples.env.multi_agent import MultiAgentCartPole
-from ray.rllib.policy.policy import PolicySpec
-from ray.rllib.utils.framework import try_import_tf
-from ray.rllib.utils.test_utils import check_learning_achieved
-from Ambiente_SOMN.make_env import make_env
-from ray.rllib.env.wrappers.pettingzoo_env import ParallelPettingZooEnv
-from ray.tune.registry import register_env
-
-
-tf1, tf, tfv = try_import_tf()
+from ray.rllib.env import BaseEnv
+from ray.rllib.evaluation import Episode, RolloutWorker
+from ray.rllib.policy import Policy
+from ray.rllib.policy.sample_batch import SampleBatch
 
 parser = argparse.ArgumentParser()
-
-parser.add_argument("--num-agents", type=int, default=2)
-parser.add_argument("--num-policies", type=int, default=2)
-parser.add_argument("--objetivo", type=int, default=0)
 parser.add_argument(
     "--framework",
-    choices=["tf2", "torch"],  # tf will be deprecated with the new Learner stack
+    choices=["tf", "tf2", "torch"],
     default="torch",
     help="The DL framework specifier.",
 )
+parser.add_argument("--stop-iters", type=int, default=2000)
 
-parser.add_argument(
-    "--num-gpus",
-    type=int,
-    default=int(os.environ.get("RLLIB_NUM_GPUS", "0")),
-    help="Number of GPUs to use for training.",
-)
 
-parser.add_argument(
-    "--as-test",
-    action="store_true",
-    help="Whether this script should be run as a test: --stop-reward must "
-    "be achieved within --stop-timesteps AND --stop-iters.",
-)
+# Create a custom CartPole environment that maintains an estimate of velocity
+class CustomCartPole(gym.Env):
+    def __init__(self, config):
+        self.env = gym.make("CartPole-v1")
+        self.observation_space = self.env.observation_space
+        self.action_space = self.env.action_space
+        self._pole_angle_vel = 0.0
+        self.last_angle = 0.0
 
-parser.add_argument(
-    "--stop-iters", type=int, default=20, help="Number of iterations to train."
-)
-parser.add_argument(
-    "--stop-timesteps", type=int, default=50000, help="Number of timesteps to train."
-)
+    def reset(self, *, seed=None, options=None):
+        self._pole_angle_vel = 0.0
+        obs, info = self.env.reset()
+        self.last_angle = obs[2]
+        return obs, info
 
-parser.add_argument(
-    "--stop-reward-per-agent",
-    type=float,
-    default=150.0,
-    help="Min. reward per agent at which we stop training.",
-)
+    def step(self, action):
+        obs, rew, term, trunc, info = self.env.step(action)
+        angle = obs[2]
+        self._pole_angle_vel = (
+            0.5 * (angle - self.last_angle) + 0.5 * self._pole_angle_vel
+        )
+        info["pole_angle_vel"] = self._pole_angle_vel
+        return obs, rew, term, trunc, info
+
+
+class MyCallbacks(DefaultCallbacks):
+    def on_episode_start(
+        self,
+        *,
+        worker: RolloutWorker,
+        base_env: BaseEnv,
+        policies: Dict[str, Policy],
+        episode: Episode,
+        env_index: int,
+        **kwargs,
+    ):
+        # Make sure this episode has just been started (only initial obs
+        # logged so far).
+        assert episode.length == 0, (
+            "ERROR: `on_episode_start()` callback should be called right "
+            "after env reset!"
+        )
+        # Create lists to store angles in
+        episode.user_data["pole_angles"] = []
+        episode.hist_data["pole_angles"] = []
+
+    def on_episode_step(
+        self,
+        *,
+        worker: RolloutWorker,
+        base_env: BaseEnv,
+        policies: Dict[str, Policy],
+        episode: Episode,
+        env_index: int,
+        **kwargs,
+    ):
+        # Make sure this episode is ongoing.
+        assert episode.length > 0, (
+            "ERROR: `on_episode_step()` callback should not be called right "
+            "after env reset!"
+        )
+        pole_angle = abs(episode.last_observation_for()[2])
+        raw_angle = abs(episode.last_raw_obs_for()[2])
+        assert pole_angle == raw_angle
+        episode.user_data["pole_angles"].append(pole_angle)
+
+        # Sometimes our pole is moving fast. We can look at the latest velocity
+        # estimate from our environment and log high velocities.
+        if np.abs(episode.last_info_for()["pole_angle_vel"]) > 0.25:
+            print("This is a fast pole!")
+
+    def on_episode_end(
+        self,
+        *,
+        worker: RolloutWorker,
+        base_env: BaseEnv,
+        policies: Dict[str, Policy],
+        episode: Episode,
+        env_index: int,
+        **kwargs,
+    ):
+        # Check if there are multiple episodes in a batch, i.e.
+        # "batch_mode": "truncate_episodes".
+        if worker.config.batch_mode == "truncate_episodes":
+            # Make sure this episode is really done.
+            assert episode.batch_builder.policy_collectors["default_policy"].batches[
+                -1
+            ]["dones"][-1], (
+                "ERROR: `on_episode_end()` should only be called "
+                "after episode is done!"
+            )
+        pole_angle = np.mean(episode.user_data["pole_angles"])
+        episode.custom_metrics["pole_angle"] = pole_angle
+        episode.hist_data["pole_angles"] = episode.user_data["pole_angles"]
+
+    def on_sample_end(self, *, worker: RolloutWorker, samples: SampleBatch, **kwargs):
+        # We can also do our own sanity checks here.
+        assert (
+            samples.count == 2000
+        ), f"I was expecting 2000 here, but got {samples.count}!"
+
+    def on_train_result(self, *, algorithm, result: dict, **kwargs):
+        # you can mutate the result dict to add new fields to return
+        result["callback_ok"] = True
+
+        # Normally, RLlib would aggregate any custom metric into a mean, max and min
+        # of the given metric.
+        # For the sake of this example, we will instead compute the variance and mean
+        # of the pole angle over the evaluation episodes.
+        pole_angle = result["custom_metrics"]["pole_angle"]
+        var = np.var(pole_angle)
+        mean = np.mean(pole_angle)
+        result["custom_metrics"]["pole_angle_var"] = var
+        result["custom_metrics"]["pole_angle_mean"] = mean
+        # We are not interested in these original values
+        del result["custom_metrics"]["pole_angle"]
+        del result["custom_metrics"]["num_batches"]
+
+    def on_learn_on_batch(
+        self, *, policy: Policy, train_batch: SampleBatch, result: dict, **kwargs
+    ) -> None:
+        result["sum_actions_in_train_batch"] = train_batch["actions"].sum()
+        # Log the sum of actions in the train batch.
+        print(
+            "policy.learn_on_batch() result: {} -> sum actions: {}".format(
+                policy, result["sum_actions_in_train_batch"]
+            )
+        )
+
+    def on_postprocess_trajectory(
+        self,
+        *,
+        worker: RolloutWorker,
+        episode: Episode,
+        agent_id: str,
+        policy_id: str,
+        policies: Dict[str, Policy],
+        postprocessed_batch: SampleBatch,
+        original_batches: Dict[str, Tuple[Policy, SampleBatch]],
+        **kwargs,
+    ):
+        if "num_batches" not in episode.custom_metrics:
+            episode.custom_metrics["num_batches"] = 0
+        episode.custom_metrics["num_batches"] += 1
+
 
 if __name__ == "__main__":
     args = parser.parse_args()
 
-    ray.init()
-
-    env_name = "SOMN"
-    register_env(env_name, lambda config: ParallelPettingZooEnv(make_env(-1, args.num_agents, args.objetivo)))
-
-    # Each policy can have a different configuration (including custom model).
-    def gen_policy(i):
-        gammas = [0.95, 0.99]
-        # just change the gammas between the two policies.
-        # changing the module is not a critical part of this example.
-        # the important part is that the policies are different.
-        config = {
-            "gamma": gammas[i % len(gammas)],
-        }
-
-        return PolicySpec(config=config)
-
-    # Setup PPO with an ensemble of `num_policies` different policies.
-    policies = {"policy_{}".format(i): gen_policy(i) for i in range(args.num_policies)}
-    policy_ids = list(policies.keys())
-
-    def policy_mapping_fn(agent_id, episode, worker, **kwargs):
-        pol_id = random.choice(policy_ids)
-        return pol_id
-
     config = (
         PPOConfig()
-        .experimental(_enable_new_api_stack=True)
-        .rollouts(rollout_fragment_length="auto", num_rollout_workers=3)
-        .environment(env_name, env_config={"num_agents": args.num_agents})
+        .environment(CustomCartPole)
         .framework(args.framework)
-        .training(num_sgd_iter=10, sgd_minibatch_size=2**9, train_batch_size=2**12)
-        .multi_agent(policies=policies, policy_mapping_fn=policy_mapping_fn)
-        .resources(
-            num_learner_workers=args.num_gpus,
-            num_gpus_per_learner_worker=int(args.num_gpus > 0),
-        )
+        .callbacks(MyCallbacks)
+        .resources(num_gpus=int(os.environ.get("RLLIB_NUM_GPUS", "0")))
+        .rollouts(enable_connectors=False)
+        .reporting(keep_per_episode_custom_metrics=True)
     )
 
-    stop_reward = args.stop_reward_per_agent * args.num_agents
-    stop = {
-        "episode_reward_mean": stop_reward,
-        "timesteps_total": args.stop_timesteps,
-        "training_iteration": args.stop_iters,
-    }
-
-    results = tune.Tuner(
+    ray.init(local_mode=True)
+    tuner = tune.Tuner(
         "PPO",
-        param_space=config.to_dict(),
-        run_config=air.RunConfig(stop=stop, verbose=3),
-    ).fit()
+        run_config=air.RunConfig(
+            stop={
+                "training_iteration": args.stop_iters,
+            },
+        ),
+        param_space=config,
+    )
+    # there is only one trial involved.
+    result = tuner.fit().get_best_result()
 
-    if args.as_test:
-        check_learning_achieved(results, stop_reward)
-    ray.shutdown()
+    # Verify episode-related custom metrics are there.
+    custom_metrics = result.metrics["custom_metrics"]
+    print(custom_metrics)
+    assert "pole_angle_mean" in custom_metrics
+    assert "pole_angle_var" in custom_metrics

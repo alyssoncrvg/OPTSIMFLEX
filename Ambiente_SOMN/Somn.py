@@ -1,12 +1,8 @@
 from Ambiente_SOMN.Demand import Demand
 from Ambiente_SOMN.Yard import Yard
-import matplotlib.pyplot as plt
 
-from numpy.random.mtrand import seed
 # a biblioteca gym mudou
-import gymnasium as gym
 from gymnasium import spaces  # Discrete, Box, Tuple,  Dict
-from gymnasium import Env
 from heapdict import heapdict
 
 # outras bibliotecas
@@ -14,10 +10,7 @@ import os
 import numpy as np
 import random
 import numpy as np
-from absl import flags
 from scipy.stats import poisson
-import torch
-import wandb
 
 #############################################################
 from pettingzoo import ParallelEnv
@@ -50,7 +43,7 @@ class Somn(ParallelEnv):
 
     metadata = {
         "render_mode": ["human", "rgb_array"],
-        "name": "waterworld_v4",
+        "name": "SOMN",
         "is_parallelizable": True
     }
 

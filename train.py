@@ -7,8 +7,7 @@ from ray.rllib.env.wrappers.pettingzoo_env import ParallelPettingZooEnv
 from Ambiente_SOMN.make_env import make_env
 
 from ray.air.integrations.wandb import WandbLoggerCallback
-
-# Based on code from github.com/parametersharingmadrl/parametersharingmadrl
+from Ambiente_SOMN.MyCallbacks import MyCallbacks
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
@@ -17,6 +16,7 @@ parser.add_argument(
     default=0,
     help="Number of GPUs to use for training.",
 )
+
 parser.add_argument(
     "--as-test",
     action="store_true",
@@ -39,25 +39,8 @@ parser.add_argument(
 if __name__ == "__main__":
     args = parser.parse_args()
 
-    # Initialize a new wandb run
-    # if len(wandb.patched["tensorboard"]) > 0:
-    #     wandb.tensorboard.unpatch()
-    # wandb.tensorboard.patch(root_logdir="./runs")
-
-    # with open("./config.yaml") as file:
-    #     configWandb = yaml.load(file, Loader=yaml.FullLoader)
-
     def env_creator(args):
         return ParallelPettingZooEnv(make_env(-1, 3, 0))
-    
-#     wandb.init(project="Treinamento multi-agent", #NOME DO PROJETO
-#         config=configWandb,
-#         group="Testes", #GRUPOS A SEREM ADCIONADOS NO WANDB
-# #                          name=f'custom-PPO-atraso_{atraso:02d}-run_{x+1:02d}',
-#         name="teste", #NOME DA EXECUÇÃO
-#         save_code=True,
-#         reinit=True
-#     )
 
     env = env_creator({})
     register_env("SOMN", env_creator)
@@ -65,8 +48,9 @@ if __name__ == "__main__":
     config = (
         PPOConfig()
         .environment("SOMN")
+        .callbacks(MyCallbacks)
         .resources(num_gpus=0)
-        .rollouts(num_rollout_workers=1)
+        .rollouts(num_rollout_workers=1)#QUANDO COLOCADO EM 2 DÁ ERRO NA MÁQUINA, DESCOBRIR O PQ!!!!
         .multi_agent(
             policies=env.get_agent_ids(),
             policy_mapping_fn=(lambda agent_id, *args, **kwargs: agent_id),
@@ -86,7 +70,7 @@ if __name__ == "__main__":
             checkpoint_config=air.CheckpointConfig(
                 checkpoint_frequency=10,
             ),
-            callbacks=[WandbLoggerCallback(project="Treinamento multi-agent")]
+            callbacks=[WandbLoggerCallback(project="Treinamento multi-agent", group="Testes Callback")]
         ),
         param_space=config,
     ).fit()
