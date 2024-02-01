@@ -36,11 +36,20 @@ parser.add_argument(
     default=0
 )
 
+def getPolicie(objetivo):
+    pass
+
 if __name__ == "__main__":
     args = parser.parse_args()
 
+    objetivo = {
+        0 : 0,
+        1 : 1,
+        2 : 2
+    }
+
     def env_creator(args):
-        return ParallelPettingZooEnv(make_env(-1, 3, 0))
+        return ParallelPettingZooEnv(make_env(-1, 3, objetivo))
 
     env = env_creator({})
     register_env("SOMN", env_creator)
@@ -57,11 +66,7 @@ if __name__ == "__main__":
         )
     )
 
-    if args.as_test:
-        # Only a compilation test of running waterworld / independent learning.
-        stop = {"training_iteration": 1}
-    else:
-        stop = {"episodes_total": 60000}
+    stop = {"timesteps_total": 250000}
 
     tune.Tuner(
         "PPO",
