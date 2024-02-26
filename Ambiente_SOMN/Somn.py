@@ -141,6 +141,8 @@ class Somn(ParallelEnv):
         
         self.DE = []  
         self.YA = []
+        self.rejectAgent = []
+        self.reject_w_wasteAgent = []
         for agent in range(numAgents):
             agentDemands = [
                 Demand(
@@ -150,9 +152,8 @@ class Somn(ParallelEnv):
             ]
             self.DE.append(agentDemands)
             self.YA.append(Yard(Y))
-
-        
-        
+            self.rejectAgent.append(0)
+            self.reject_w_wasteAgent.append(0)
 
         ######################
         #      lb e ub       #
@@ -542,6 +543,9 @@ class Somn(ParallelEnv):
             
             self.DE[agent][i].ST = -1  # LIBERA O ESPAÇO APÓS CONTABILIZADO
             self.match[agent][i] = 0
+            self.rejectAgent[agent]+=1
+        else:
+            self.rejectAgent[agent]+=1
                 
     def reject_w_waste(self, i: int, agent):
         if self.DE[agent][i].ST == -2:
@@ -552,6 +556,9 @@ class Somn(ParallelEnv):
             
             self.DE[agent][i].ST = -1  # LIBERA O ESPAÇO APÓS CONTABILIZADO
             self.match[agent][i] = 0
+            self.reject_w_wasteAgent[agent]+=1
+        else:
+            self.reject_w_wasteAgent[agent]+=1
     
     def atualiza_upper_bounds(self, agent):
         # Atualiza o upper bounds
@@ -627,7 +634,10 @@ class Somn(ParallelEnv):
         done = {f"{i}": {} for i in range(len(self.possible_agents))}
         truncated = {f"{i}" : {} for i in range(len(self.possible_agents))}
 
-        for agent, action in enumerate(actions.values()):
+        for agent in actions:
+            
+            action = actions[agent]
+            agent = int(agent)
 
             self.totReward = 0.0
             self.totPenalty = 0.0
@@ -722,7 +732,9 @@ class Somn(ParallelEnv):
                     "VA": self.variabilidade,
                     "SU": self.sustentabilidade,
                     "F": self.F,
-                    "acoes": self.acoes,
+                    "acoes": action,
+                    "reject": self.rejectAgent[agent],
+                    "reject_w_west": self.reject_w_wasteAgent[agent],
                     "atrasos_reais": self.atrasos_reais,
                     "acao_on_state_plan": self.acao_on_state_plan,
                     "carga_on_state_plan": self.carga_on_state_plan,
@@ -810,6 +822,8 @@ class Somn(ParallelEnv):
         self.YA = []
 
         self.DE = []
+        self.rejectAgent = []
+        self.reject_w_wasteAgent = []
 
         for agent in range(len(self.agents)):
             agentDemands = [
@@ -821,6 +835,8 @@ class Somn(ParallelEnv):
 
             self.DE.append(agentDemands)
             self.YA.append(Yard(self.Y))
+            self.reject_w_wasteAgent.append(0)
+            self.rejectAgent.append(0)
 
         # tira todas as demandas de FREE(-1) para READY(0)
         for agent in range(len(self.agents)):
