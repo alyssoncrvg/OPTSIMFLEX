@@ -1,5 +1,3 @@
-#from stable_baselines3.common.monitor import Monitor
-from Stablebaselines3.monitor import Monitor
 from Ambiente_SOMN.Somn import Somn
 
 def make_env(atraso: int, numAgents : int, objetivo: dict[int,int]):

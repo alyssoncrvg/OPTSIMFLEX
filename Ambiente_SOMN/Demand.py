@@ -4,12 +4,6 @@ from scipy.stats import poisson
 
 class Demand:
 
-    cont=0      # by_frederic ---> mudei de 1 para 0
-    load=0
-    reject=0         # rejeitada ST = 2
-    production_w_waste=0 # producao com lixo ST = -2
-    #atraso=None
-
     # Somn(Y=10,M=10,N=10,MAXDO=10,MAXAM=3,MAXPR=2,MAXPE=10,MAXFT=5,MAXMT=3,MAXTI=2,MAXEU = 5, atraso=atraso)
     def __init__(self,
                  M:int,
@@ -46,10 +40,10 @@ class Demand:
         Demand.atraso=atraso
 
 
-    def __call__(self, t:int):
+    def __call__(self, t:int, cont: int, load: int):
 
-        Demand.cont +=1
-        self.CU = Demand.cont
+        cont +=1
+        self.CU = cont
     #   self.PR = random.randrange(3,Demand.MAXPR)  below -----------------
         self.AM = random.randrange(1,Demand.MAXAM)
         self.PE = random.randint(1,Demand.MAXPE)
@@ -95,7 +89,7 @@ class Demand:
 
         # self.LT = int(self.F/2) + 2                      ###  --- 1.0*self.fun_tau() * self.F
         self.LT = self.fun_tau()
-        self.real_LT = poisson.rvs(mu=(self.LT + Demand.load))
+        self.real_LT = poisson.rvs(mu=(self.LT + load))
         self.TP = t + self.real_LT
         
         self.atraso_real = abs(self.real_LT - self.LT)

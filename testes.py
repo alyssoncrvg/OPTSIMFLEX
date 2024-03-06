@@ -1,62 +1,41 @@
-import argparse
-
-from ray import air, tune
-from ray.tune.registry import register_env
-from ray.rllib.algorithms.ppo import PPOConfig
-from ray.rllib.env.wrappers.pettingzoo_env import ParallelPettingZooEnv, PettingZooEnv
-from pettingzoo.sisl import waterworld_v4
+from pettingzoo.test import parallel_api_test
 from Ambiente_SOMN.make_env import make_env
+from datetime import date, datetime
+from Ambiente_SOMN.Statistcs import Statistcs
 
-# Based on code from github.com/parametersharingmadrl/parametersharingmadrl
+objetivo = {
+        0 : 0,
+        1 : 1,
+        2 : 2
+    }
+env = make_env(-1,3,objetivo)
 
-parser = argparse.ArgumentParser()
-parser.add_argument(
-    "--num-gpus",
-    type=int,
-    default=0,
-    help="Number of GPUs to use for training.",
-)
-parser.add_argument(
-    "--as-test",
-    action="store_true",
-    help="Whether this script should be run as a test: Only one episode will be "
-    "sampled.",
-)
+parallel_api_test(env, num_cycles=10000000)
 
-if __name__ == "__main__":
-    args = parser.parse_args()
 
-    def env_creator(args):
-        return ParallelPettingZooEnv(make_env(-1,2,0))
-        # return PettingZooEnv(waterworld_v4.env())
+# import pandas as pd
+# import matplotlib.pyplot as plt
 
-    env = env_creator({})
-    register_env("waterworld", env_creator)
+# # Carregar dados do arquivo CSV usando a biblioteca pandas
+# dados_csv = pd.read_csv("C:/Users/Alysson/Documents/GitHub/OPTSIMFLEX/plots/2024-02-23/17-21-12/Yard.csv")
 
-    config = (
-        PPOConfig()
-        .environment("waterworld")
-        .resources(num_gpus=args.num_gpus)
-        .rollouts(num_rollout_workers=0)
-        .multi_agent(
-            policies=env.get_agent_ids(),
-            policy_mapping_fn=(lambda agent_id, *args, **kwargs: agent_id),
-        )
-    )
 
-    if args.as_test:
-        # Only a compilation test of running waterworld / independent learning.
-        stop = {"training_iteration": 1}
-    else:
-        stop = {"episodes_total": 60000}
+# # Filtrar dados para cada agente
+# agentes = dados_csv['Agent_ID'].unique()
 
-    tune.Tuner(
-        "PPO",
-        run_config=air.RunConfig(
-            stop=stop,
-            checkpoint_config=air.CheckpointConfig(
-                checkpoint_frequency=10,
-            ),
-        ),
-        param_space=config,
-    ).fit()
+# # Criar um gráfico de linhas para cada agente
+# for agente in agentes:
+#     dados_agente = dados_csv[dados_csv['Agent_ID'] == agente]
+#     plt.plot(dados_agente['Step'], dados_agente['Yard'], label=agente)
+
+# # Adicionar rótulos e legenda ao gráfico
+# plt.xlabel('Step')
+# plt.ylabel('Yard Value')
+# plt.title('Variação do Yard ao longo dos Steps para Cada Agente')
+# plt.legend()
+
+# # Exibir o gráfico
+# plt.savefig("C:/Users/Alysson/Documents/GitHub/OPTSIMFLEX/plots/2024-02-23/17-21-12/yard.png")
+
+# import tensorflow as tf
+# print("Num GPUs Available: ", len(tf.config.list_physical_devices('GPU')))

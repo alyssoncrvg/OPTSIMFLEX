@@ -51,7 +51,7 @@ if __name__ == "__main__":
             checkpoint_config=air.CheckpointConfig(
                 checkpoint_frequency=10,
             ),
-            callbacks=[WandbLoggerCallback(project="Treinamento multi-agent", group="Testes Callback")]
+            callbacks=[WandbLoggerCallback(project="Treinamento multi-agent", group="Testes Comunicação")]
         ),
         param_space=config,
     ).fit()

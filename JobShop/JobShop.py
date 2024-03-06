@@ -2,7 +2,7 @@
 import collections
 from ortools.sat.python import cp_model
 import wandb
-from stable_baselines3.common.base_class import BaseAlgorithm
+# from stable_baselines3.common.base_class import BaseAlgorithm
 #class Task:
 #    def __init__(self, machine, duration):
 #        self.machine = machine
@@ -124,7 +124,7 @@ class JobShop:
             print(f'Optimal Schedule Length: {self.solver.ObjectiveValue()}')
             print(self.output)
             
-            wandb.log({'Objective Value': self.solver.ObjectiveValue(), 'steps': BaseAlgorithm.getNumTimeStep})
+            # wandb.log({'Objective Value': self.solver.ObjectiveValue(), 'steps': BaseAlgorithm.getNumTimeStep})
             
         else:
             print('No solution found.')

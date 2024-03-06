@@ -1,5 +1,6 @@
 from Ambiente_SOMN.Demand import Demand
 from Ambiente_SOMN.Yard import Yard
+from Ambiente_SOMN.Statistcs import Statistcs
 
 # a biblioteca gym mudou
 from gymnasium import spaces  # Discrete, Box, Tuple,  Dict
@@ -141,8 +142,8 @@ class Somn(ParallelEnv):
         
         self.DE = []  
         self.YA = []
-        self.rejectAgent = []
-        self.reject_w_wasteAgent = []
+        self.statistcs = []
+
         for agent in range(numAgents):
             agentDemands = [
                 Demand(
@@ -152,8 +153,7 @@ class Somn(ParallelEnv):
             ]
             self.DE.append(agentDemands)
             self.YA.append(Yard(Y))
-            self.rejectAgent.append(0)
-            self.reject_w_wasteAgent.append(0)
+            self.statistcs.append(Statistcs())
 
         ######################
         #      lb e ub       #
@@ -334,7 +334,7 @@ class Somn(ParallelEnv):
     def readDemand(self, agent):
         for i in range(Demand.N):
             if (self.DE[agent][i].ST == -1):  # free(-1)
-                self.DE[agent][i](Somn.time[agent])
+                self.DE[agent][i](Somn.time[agent], self.statistcs[agent].cont, self.statistcs[agent].load)
                 self.match[agent][i] = 0
     
     def match_demand_with_inventory(self, agent) -> bool:
@@ -418,10 +418,6 @@ class Somn(ParallelEnv):
         return covered
     
     def plan(self, t: int, action, agent):
-        
-        # wandb.log({
-        #     f'Tamanho da fila de prioridade agente {agent}' : len(Somn.priorq[Somn.objetivo]),
-        # })
 
         if len(Somn.priorq[agent][Somn.objetivo[agent]]) > 0:
             # objetivo {0: price, 1: variabilidade, 2: sustentabilidade}
@@ -443,16 +439,13 @@ class Somn(ParallelEnv):
                     # salva a acao
                     self.DE[agent][i].action = action
                     self.acao_on_state_plan.append(action)
-                    
-
-                    
 
                     # executa a acao
                     if self.DE[agent][i].DO > (t + self.DE[agent][i].LT + action):
                         self.DE[agent][i].ST = 3  ## produced status --- remember to run time for each case
                         self.OU[agent] += self.DE[agent][i].FT  ## CONSOME OS RECURSOS
-                        Demand.load = Demand.load + 1
-                        self.DE[agent][i].real_LT = poisson.rvs(mu=(self.DE[agent][i].LT+Demand.load)) # by_frederic
+                        self.statistcs[agent].load = self.statistcs[agent].load + 1
+                        self.DE[agent][i].real_LT = poisson.rvs(mu=(self.DE[agent][i].LT+self.statistcs[agent].load)) # by_frederic
                         self.DE[agent][i].TP = t + self.DE[agent][i].real_LT
                         self.DE[agent][i].atraso_real = abs(self.DE[agent][i].real_LT - self.DE[agent][i].LT)
                         self.DE[agent][i].err = abs(self.DE[agent][i].action - self.DE[agent][i].atraso_real)
@@ -463,13 +456,16 @@ class Somn(ParallelEnv):
                         self.sustentabilidade.append(self.DE[agent][i].SU)
                         self.F.append(self.DE[agent][i].F)
                     else:
+                        """
+                        REJEITANDO APENAS NA FILA DE PRIORIDADE????????????
+                        """
                         self.DE[agent][i].ST = 2  ## rejected status
                         self.OU[agent] -= self.DE[agent][i].FT  ### libera do buffer de produção
                         self.BA[agent] += self.DE[agent][i].FT  ## devolve para o saldo para os próximos
-                        Demand.reject = Demand.reject + 1
+                        self.statistcs[agent].reject = self.statistcs[agent].reject + 1
                         # se a demanda tivesse sido produzida, teria tido esse real_LT, TP, atraso_real e err abaixo
                         # valores calculados só para salvar no log e avaliar o modelo
-                        self.DE[agent][i].real_LT = poisson.rvs(mu=(self.DE[agent][i].LT + Demand.load))
+                        self.DE[agent][i].real_LT = poisson.rvs(mu=(self.DE[agent][i].LT + self.statistcs[agent].load))
                         self.DE[agent][i].TP = t + self.DE[agent][i].real_LT
                         self.DE[agent][i].atraso_real = abs(self.DE[agent][i].real_LT - self.DE[agent][i].LT)
                         self.DE[agent][i].err = abs(self.DE[agent][i].action - self.DE[agent][i].atraso_real)
@@ -486,7 +482,7 @@ class Somn(ParallelEnv):
         if self.DE[agent][i].ST == 3:
             if self.DE[agent][i].TP < t:  ### TP eh resultado de LT(#f) + RAND
                 #Somn.producing = Somn.producing - 1
-                Demand.load = Demand.load - 1
+                self.statistcs[agent].load = self.statistcs[agent].load - 1
                 if t < self.DE[agent][i].DO:
                     self.DE[agent][i].ST = 5  ## produced status --- remember to run time for each case
                     # print("\n Destination: Enviou", Yard.cont)
@@ -497,7 +493,7 @@ class Somn(ParallelEnv):
                     if self.Y == 0:
                         self.DE[agent][i].ST = -2  ## NAO CABE ... PRODUCAO COM GERAÇÃO DE LIXO (CASO MAIS GRAVE)
                         # production with waste
-                        Demand.production_w_waste = Demand.production_w_waste + 1
+                        self.statistcs[agent].production_w_waste = self.statistcs[agent].production_w_waste + 1
 
                     elif self.YA[agent].cont < self.YA[agent].Y:
                         self.YA[agent].yard.append(self.DE[agent][i].FT)
@@ -511,7 +507,7 @@ class Somn(ParallelEnv):
                     else:
                         self.DE[agent][i].ST = -2  ## NAO CABE ... PRODUCAO COM GERAÇÃO DE LIXO (CASO MAIS GRAVE)
                         # production with waste
-                        Demand.production_w_waste = Demand.production_w_waste + 1
+                        self.statistcs[agent].production_w_waste = self.statistcs[agent].production_w_waste + 1
 
     def dispatch(self, i: int, agent):
              
@@ -543,9 +539,6 @@ class Somn(ParallelEnv):
             
             self.DE[agent][i].ST = -1  # LIBERA O ESPAÇO APÓS CONTABILIZADO
             self.match[agent][i] = 0
-            self.rejectAgent[agent]+=1
-        else:
-            self.rejectAgent[agent]+=1
                 
     def reject_w_waste(self, i: int, agent):
         if self.DE[agent][i].ST == -2:
@@ -556,9 +549,6 @@ class Somn(ParallelEnv):
             
             self.DE[agent][i].ST = -1  # LIBERA O ESPAÇO APÓS CONTABILIZADO
             self.match[agent][i] = 0
-            self.reject_w_wasteAgent[agent]+=1
-        else:
-            self.reject_w_wasteAgent[agent]+=1
     
     def atualiza_upper_bounds(self, agent):
         # Atualiza o upper bounds
@@ -733,8 +723,8 @@ class Somn(ParallelEnv):
                     "SU": self.sustentabilidade,
                     "F": self.F,
                     "acoes": action,
-                    "reject": self.rejectAgent[agent],
-                    "reject_w_west": self.reject_w_wasteAgent[agent],
+                    "reject": self.statistcs[agent].reject,
+                    "reject_w_west": self.statistcs[agent].production_w_waste,
                     "atrasos_reais": self.atrasos_reais,
                     "acao_on_state_plan": self.acao_on_state_plan,
                     "carga_on_state_plan": self.carga_on_state_plan,
@@ -754,7 +744,7 @@ class Somn(ParallelEnv):
                 "DE_state": self.DE_state,
                 "FT_state": self.FT_state,
                 "yard": np.array([self.normaliza(self.YA[agent].cont, self.lb_yard, self.ub_yard)]),
-                "load": np.array([self.normaliza(Demand.load, self.lb_load, self.ub_load)]),
+                "load": np.array([self.normaliza(self.statistcs[agent].load, self.lb_load, self.ub_load)]),
 
             }  # by_frederic: retorna quando e um tipo Dict
 
@@ -799,7 +789,7 @@ class Somn(ParallelEnv):
         
         #LOGS PONTUAIS
         # wandb.log({
-        #     'reject_w_waste Somn' : Demand.reject_w_waste
+        #     'reject_w_waste Somn' : self.statistcs[agent].reject_w_waste
         # })
 
         for agent in range(len(self.agents)):
@@ -815,15 +805,9 @@ class Somn(ParallelEnv):
         self.carga_on_state_plan = []
         self.patio_on_state_plan = []
 
-        Demand.load = 0
-        Demand.reject = 0
-        Demand.production_w_waste=0
-
         self.YA = []
 
         self.DE = []
-        self.rejectAgent = []
-        self.reject_w_wasteAgent = []
 
         for agent in range(len(self.agents)):
             agentDemands = [
@@ -835,13 +819,14 @@ class Somn(ParallelEnv):
 
             self.DE.append(agentDemands)
             self.YA.append(Yard(self.Y))
-            self.reject_w_wasteAgent.append(0)
-            self.rejectAgent.append(0)
+            self.statistcs[agent].load = 0
+            self.statistcs[agent].reject = 0
+            self.statistcs[agent].production_w_waste=0
 
         # tira todas as demandas de FREE(-1) para READY(0)
         for agent in range(len(self.agents)):
             for i in range(self.N):
-                self.DE[agent][i](Somn.time[agent])
+                self.DE[agent][i](Somn.time[agent], self.statistcs[agent].cont, self.statistcs[agent].load)
 
             self.DE_state, self.FT_state = self.observa_demanda(agent)
 
@@ -862,7 +847,7 @@ class Somn(ParallelEnv):
                 "DE_state": self.DE_state,
                 "FT_state": self.FT_state,
                 "yard": np.array([self.normaliza(self.YA[agent].cont, self.lb_yard, self.ub_yard)]),
-                "load": np.array([self.normaliza(Demand.load, self.lb_load, self.ub_load)]),
+                "load": np.array([self.normaliza(self.statistcs[agent].load, self.lb_load, self.ub_load)]),
             }  # by_frederic: retorna quando e um tipo Dict
 
             observationParcial[f"{agent}"] = observation
