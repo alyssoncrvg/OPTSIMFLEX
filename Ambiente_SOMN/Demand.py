@@ -39,6 +39,10 @@ class Demand:
        
         Demand.atraso=atraso
 
+        self.rejects = []
+
+        self.posDemand = -1
+
 
     def __call__(self, t:int, cont: int, load: int):
 

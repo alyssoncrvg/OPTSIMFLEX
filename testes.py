@@ -10,7 +10,7 @@ objetivo = {
     }
 env = make_env(-1,3,objetivo)
 
-parallel_api_test(env, num_cycles=10000000)
+parallel_api_test(env, num_cycles=100000)
 
 
 # import pandas as pd

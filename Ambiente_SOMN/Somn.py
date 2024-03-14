@@ -12,6 +12,7 @@ import numpy as np
 import random
 import numpy as np
 from scipy.stats import poisson
+import copy
 
 #############################################################
 from pettingzoo import ParallelEnv
@@ -142,7 +143,14 @@ class Somn(ParallelEnv):
         
         self.DE = []  
         self.YA = []
+
+
         self.statistcs = []
+        self.rejecteds = []
+        self.demands_rejects_all = 0
+        self.aux = []
+
+        self.MT = []
 
         for agent in range(numAgents):
             agentDemands = [
@@ -154,6 +162,7 @@ class Somn(ParallelEnv):
             self.DE.append(agentDemands)
             self.YA.append(Yard(Y))
             self.statistcs.append(Statistcs())
+            self.MT.append([])
 
         ######################
         #      lb e ub       #
@@ -296,6 +305,7 @@ class Somn(ParallelEnv):
 
         self.observation_spaces = spaces.Dict({f"{i}" : self.observation_spaces for i in range(numAgents)})
 
+        self.stepnum = 0
     ######################
     #      funcoes       #
     ######################
@@ -331,51 +341,108 @@ class Somn(ParallelEnv):
         x_norm = np.clip(x_norm, 0.0, 1.0).astype(np.float64)
         return x_norm
 
-    def readDemand(self, agent):
-        for i in range(Demand.N):
-            if (self.DE[agent][i].ST == -1):  # free(-1)
-                self.DE[agent][i](Somn.time[agent], self.statistcs[agent].cont, self.statistcs[agent].load)
-                self.match[agent][i] = 0
+    def readDemand(self, agent, demand: Demand = None):
+        if demand == None:
+            for i in range(len(self.DE[agent])):
+                if (self.DE[agent][i].ST == -1):  # free(-1)
+                    self.DE[agent][i](Somn.time[agent], self.statistcs[agent].cont, self.statistcs[agent].load)
+                    self.match[agent][i] = 0
+                    self.DE[agent][i].rejects = []
+                    self.DE[agent][i].posDemand = -1
+     
+        else:
+            if demand.ST == -1:
+                demand(Somn.time[agent], self.statistcs[agent].cont, self.statistcs[agent].load)
+                self.match[agent][demand.posDemand] = 0
     
-    def match_demand_with_inventory(self, agent) -> bool:
-        for i in range(Demand.N):
-            if self.DE[agent][i].ST == 0: ## SÓ PODE DAR MATCH DEMANDAS CHEGADAS
-                if self.Y > 0: # ALTERAÇÃO PARA TESTE DE YARD == 0
-                    # idx é a posição se mask_FT deu match no Yard
-                    # -1 se não tiver dado match com nada no Yard
-                    idx = self.YA[agent].inYard(self.DE[agent][i].mask_FT)
+    def match_demand_with_inventory(self, agent, demand: Demand = None) -> bool:
+        if demand == None:
+            for i in range(len(self.DE[agent])):
+                if self.DE[agent][i].ST == 0: ## SÓ PODE DAR MATCH DEMANDAS CHEGADAS
+                    if self.Y > 0: # ALTERAÇÃO PARA TESTE DE YARD == 0
+                        # idx é a posição se mask_FT deu match no Yard
+                        # -1 se não tiver dado match com nada no Yard
+                        idx = self.YA[agent].inYard(self.DE[agent][i].mask_FT)
+                        if idx >= 0:
+                            self.YA[agent].remove_yard(idx)
+                            # adiciona a recompensa
+                            # tx_ambiente = self.DE[agent][i].err
+                            self.rw_pr += self.DE[agent][i].AM * self.DE[agent][i].PR
+                            # - self.DE[agent][i].AM * self.DE[agent][i].PR * tx_ambiente * 0.1
+                            self.rw_va += self.DE[agent][i].AM * self.DE[agent][i].PR * self.DE[agent][i].VA
+                            # - self.DE[agent][i].AM * self.DE[agent][i].PR * tx_ambiente * 0.1
+                            self.rw_su += self.DE[agent][i].AM * self.DE[agent][i].PR * self.DE[agent][i].SU
+                            # - self.DE[agent][i].AM * self.DE[agent][i].PR * tx_ambiente * 0.1
+                            # libera o espaço i para entrar outra demanda
+                            self.DE[agent][i].ST = -1
+                            self.match[agent][i] = 0
+
+        else:
+            if demand.ST == 0:
+                if self.Y > 0:
+                    idx = self.YA[agent].inYard(demand.mask_FT)
                     if idx >= 0:
                         self.YA[agent].remove_yard(idx)
-                        # adiciona a recompensa
-                        # tx_ambiente = self.DE[agent][i].err
-                        self.rw_pr += self.DE[agent][i].AM * self.DE[agent][i].PR
-                        # - self.DE[agent][i].AM * self.DE[agent][i].PR * tx_ambiente * 0.1
-                        self.rw_va += self.DE[agent][i].AM * self.DE[agent][i].PR * self.DE[agent][i].VA
-                        # - self.DE[agent][i].AM * self.DE[agent][i].PR * tx_ambiente * 0.1
-                        self.rw_su += self.DE[agent][i].AM * self.DE[agent][i].PR * self.DE[agent][i].SU
-                        # - self.DE[agent][i].AM * self.DE[agent][i].PR * tx_ambiente * 0.1
-                        # libera o espaço i para entrar outra demanda
-                        self.DE[agent][i].ST = -1
-                        self.match[agent][i] = 0
+                        self.rw_pr += demand.AM * demand.PR
+                        self.rw_va += demand.AM * demand.PR * demand.VA
+                        self.rw_su += demand.AM * demand.PR * demand.SU
 
-    def stock_covers_demand(self, agent):
+                        demand.ST = -1
+                        self.match[agent][demand.posDemand] = 0
+
+    def stock_covers_demand(self, agent, demand: Demand = None):
         covered = True
-        for i in range(self.N):
-            if self.DE[agent][i].ST == 0: # status RECEIVED
-                DF = self.BA[agent] - self.DE[agent][i].FT
-                OR = np.array(
-                    [abs(i) if i < 0 else 0 for i in DF]
-                )  # O QUE PRECISA SER COMPRADO
-                # print('\n ORDER from ', DF, ':', OR)
-                if not np.any(OR):
-                    self.DE[agent][i].ST = 1
-                    # fila de prioridade 0 = price
-                    prio_lucro = 1/(self.DE[agent][i].AM * self.DE[agent][i].PR)
-                    # fila de prioridade 1 = variabilidade
-                    prio_variabilidade = 1 - self.DE[agent][i].VA
-                    # fila de prioridade 2 = sustentabilidade
-                    prio_sustentabilidade = 1 - self.DE[agent][i].SU
+        if demand == None:
 
+            for i in range(len(self.DE[agent])):
+                if self.DE[agent][i].ST == 0: # status RECEIVED
+                    DF = self.BA[agent] - self.DE[agent][i].FT
+                    OR = np.array(
+                        [abs(i) if i < 0 else 0 for i in DF]
+                    )  # O QUE PRECISA SER COMPRADO
+                    # print('\n ORDER from ', DF, ':', OR)
+                    if not np.any(OR):
+                        self.DE[agent][i].ST = 1
+                        # fila de prioridade 0 = price
+                        prio_lucro = 1/(self.DE[agent][i].AM * self.DE[agent][i].PR)
+                        # fila de prioridade 1 = variabilidade
+                        prio_variabilidade = 1 - self.DE[agent][i].VA
+                        # fila de prioridade 2 = sustentabilidade
+                        prio_sustentabilidade = 1 - self.DE[agent][i].SU
+
+                        objetivo_agente = Somn.objetivo[agent]
+
+                        prioridades_atualizadas = {
+                            0: prio_lucro,
+                            1: prio_variabilidade,
+                            2: prio_sustentabilidade
+                        }
+
+                        Somn.priorq[agent][objetivo_agente][i] = prioridades_atualizadas[objetivo_agente]
+
+                        # print ((1 - self.DE[agent][i].SU))
+                        self.BA[agent] -= np.array(DF)  # ATUALIZA O SALDO
+                        self.OU[agent] += np.array(DF)  # ATUALIZA A SAÍDA
+                        # print('\n balance:', self.BA,  'because not buying',self.OU)
+                        self.match[agent][i] = 1
+                    else:
+                        covered = False
+                        self.IN[agent] += np.array(OR)  # ATUALIZA O TOTAL DE COMPRAVEIScl
+                        self.match[agent][i] = 0
+                        # print('\n balance: ', self.BA, 'because buying',OR, 'accumulating', self.IN)
+            
+        else:
+            if demand.ST == 0:
+                DF = self.BA[agent] - demand.FT
+                OR = np.array(
+                    [abs(i) if i<0 else 0 for i in DF]
+                )
+
+                if not np.any(OR):
+                    demand.ST = 1
+                    prio_lucro = 1/(demand.AM * demand.PR)
+                    prio_variabilidade = 1 - demand.VA
+                    prio_sustentabilidade = 1 - demand.SU 
                     objetivo_agente = Somn.objetivo[agent]
 
                     prioridades_atualizadas = {
@@ -384,40 +451,63 @@ class Somn(ParallelEnv):
                         2: prio_sustentabilidade
                     }
 
-                    Somn.priorq[agent][objetivo_agente][i] = prioridades_atualizadas[objetivo_agente]
+                    pos_final = demand.posDemand
+                    Somn.priorq[agent][objetivo_agente][pos_final] = prioridades_atualizadas[objetivo_agente]
 
                     # print ((1 - self.DE[agent][i].SU))
                     self.BA[agent] -= np.array(DF)  # ATUALIZA O SALDO
                     self.OU[agent] += np.array(DF)  # ATUALIZA A SAÍDA
-                    # print('\n balance:', self.BA,  'because not buying',self.OU)
-                    self.match[agent][i] = 1
+
+                    self.match[agent][demand.posDemand] = 1
                 else:
                     covered = False
-                    self.IN[agent] += np.array(OR)  # ATUALIZA O TOTAL DE COMPRAVEIScl
-                    self.match[agent][i] = 0
-                    # print('\n balance: ', self.BA, 'because buying',OR, 'accumulating', self.IN)
+                    self.IN[agent] += np.array(OR)
+                    self.match[agent][demand.posDemand] = 0
+
         return covered
 
-    def order_receive_and_match(self, agent):
-        covered = False
-        # receive RAW MATERIAL AND ORDERS (DEMANDS)
-        self.MT = np.array([random.randint(0, i) if i > 0 else 0 for i in self.IN[agent]])
-        self.readDemand(agent)
-        # IF PREVIOUS ORDERS INVENTORY AVAILABLE, PLEASE DISPATCH
-        self.match_demand_with_inventory(agent)
-        # ANYWAY, UPDATE BALANCE AND INCOME RAW MATERIAL REGARDING MT RECEIVED
-        self.IN[agent] -= self.MT
-        self.BA[agent] += self.MT
-        # IF RAW MATERIAL INVENTORY DOES NOT COVER PLEASE REQUEST RAW MATERIAL
-        if not self.stock_covers_demand(agent):
-            self.IN[agent] = np.array(
-                [random.randint(0, i) if i > 0 else 0 for i in self.IN[agent]]
-            ).astype(np.int64)
-        if self.match[agent].all():
-            covered = True
+    def order_receive_and_match(self, agent, demand: Demand = None):
+        if demand == None:
+            covered = False
+            # receive RAW MATERIAL AND ORDERS (DEMANDS)
+            self.MT[agent] = np.array([random.randint(0, i) if i > 0 else 0 for i in self.IN[agent]])
+            self.readDemand(agent)
+            # IF PREVIOUS ORDERS INVENTORY AVAILABLE, PLEASE DISPATCH
+            self.match_demand_with_inventory(agent)
+
+            # ANYWAY, UPDATE BALANCE AND INCOME RAW MATERIAL REGARDING MT RECEIVED
+            self.IN[agent] -= self.MT[agent]
+            self.BA[agent] += self.MT[agent]
+            # IF RAW MATERIAL INVENTORY DOES NOT COVER PLEASE REQUEST RAW MATERIAL
+            if not self.stock_covers_demand(agent):
+                self.IN[agent] = np.array(
+                    [random.randint(0, i) if i > 0 else 0 for i in self.IN[agent]]
+                ).astype(np.int64)
+            if self.match[agent].all():
+                covered = True
+
+        else:
+            covered = False
+            self.MT[agent] = np.array([random.randint(0,i) if i > 0 else 0 for i in self.IN[agent]])
+            self.readDemand(agent, demand)
+            self.match_demand_with_inventory(agent)
+
+            self.IN[agent] -= self.MT[agent]
+            self.BA[agent] += self.MT[agent]
+
+            if not self.stock_covers_demand(agent): 
+                self.IN[agent] = np.array(
+                    [random.randint(0, i) if i > 0 else 0 for i in self.IN[agent]]
+                ).astype(np.int64)
+            if self.match[agent][demand.posDemand] == 1:
+                covered = True
         return covered
     
-    def plan(self, t: int, action, agent):
+    def plan(self, t: int, action, agent) -> int:
+        """
+        Avalia se a Demanda, de acordo com a ordem de prioridade, vai ser produzida ou rejeitada.\n
+        Retorna o valor da posição no vetor de demandas a demanda que foi analizada
+        """
 
         if len(Somn.priorq[agent][Somn.objetivo[agent]]) > 0:
             # objetivo {0: price, 1: variabilidade, 2: sustentabilidade}
@@ -435,7 +525,7 @@ class Somn(ParallelEnv):
                     # salva o valor do patio depois da acao
                     self.patio_on_state_plan.append((self.YA[agent].cont/self.YA[agent].Y)*100)
                     # salva o valor da carga depois da acao
-                    self.carga_on_state_plan.append(sum([self.DE[agent][i].ST == 3 for i in range(self.N)]))
+                    self.carga_on_state_plan.append(sum([self.DE[agent][i].ST == 3 for i in range(len(self.DE[agent]))]))
                     # salva a acao
                     self.DE[agent][i].action = action
                     self.acao_on_state_plan.append(action)
@@ -456,9 +546,6 @@ class Somn(ParallelEnv):
                         self.sustentabilidade.append(self.DE[agent][i].SU)
                         self.F.append(self.DE[agent][i].F)
                     else:
-                        """
-                        REJEITANDO APENAS NA FILA DE PRIORIDADE????????????
-                        """
                         self.DE[agent][i].ST = 2  ## rejected status
                         self.OU[agent] -= self.DE[agent][i].FT  ### libera do buffer de produção
                         self.BA[agent] += self.DE[agent][i].FT  ## devolve para o saldo para os próximos
@@ -476,6 +563,67 @@ class Somn(ParallelEnv):
         #   Somn.instance.BuildModel()
         #   Somn.instance.Solve()
         #   Somn.instance.Output()  ## precisa salvar a lista de resultados
+    
+    def destine(self, agents: list, demand: Demand) -> int:
+        """
+            Define a qual agente certa demanda vai ser destinada com base no calculo da fila de prioridade
+        """
+        agentes = agents
+        obj = []
+        for i in agents:
+            obj.append(self.objetivo[i])
+
+        prio_lucro = 1/(demand.AM * demand.PR)
+        prio_variabilidade = 1 - demand.VA
+        prio_sustentabilidade = 1 - demand.SU 
+
+        valores = [prio_lucro, prio_variabilidade, prio_sustentabilidade ]
+
+        while len(agentes) > 0:
+            maximo = max(valores)
+            if valores.index(maximo) in obj:
+                return agentes[valores.index(maximo)]
+            else:
+                valores.remove(maximo)
+
+
+
+    
+    def rejected(self, demand: Demand):
+        """
+        Demandas rejeitadas anteriormente podem ser aceitas por outros agentes assim entrando em produção e evitando perca de demandas!\n
+        FUNCIONALIDADE:
+            - Ao final de cada interação a uma distribuição das encomendas rejeitadas por um agente para os demais
+            - Ao entrar em um novo destino essa demanda tem todo o tratamento inical de pedir materia prima e verificar se já existe no pátio
+            logo depois ela entra na fila de prioridade do seu novo agente para que ocorra o tratamento novamente
+            - Há a possibilidade dessa nova demanda ser rejeitada novamente, ao ser rejeitada por todos os agentes será somado +1 em reject_all
+            - Por questões de implementações anteriores se for rejeitada por todos ela será apenas tratada novamente e não removida do vetor de demandas
+        """
+        demand.ST = -1
+        alocado = False
+        agents = demand.rejects
+        # self.DE[agent].remove(demand)
+        if len(demand.rejects) < self.num_agents:
+            possibles = [i for i in range(self.num_agents) if i not in agents]
+            novoAgente = random.choice(possibles)
+            # novoAgente = self.destine(possibles, demand)
+
+            for num, i in enumerate(self.DE[novoAgente]):
+                if i.ST == -1:
+                    self.DE[novoAgente][num] = demand
+                    self.aux.remove(demand)
+                    self.match[novoAgente][num] = 0
+                    self.DE[novoAgente][num].posDemand = num
+                    alocado = True
+                    break
+
+            if alocado:
+                covered = False
+                while not covered:
+                    covered = self.order_receive_and_match(novoAgente, demand) #AGENTE COM STATUS DE PRODUÇÃO PORÉM MATCH 0 GERA LAÇO INFINITO
+        else:
+            self.demands_rejects_all += 1
+        
 
     def produce(self, t: int, i: int, agent):
         
@@ -539,6 +687,10 @@ class Somn(ParallelEnv):
             
             self.DE[agent][i].ST = -1  # LIBERA O ESPAÇO APÓS CONTABILIZADO
             self.match[agent][i] = 0
+            
+            self.DE[agent][i].rejects.append(agent)
+            demandCopy = copy.deepcopy(self.DE[agent][i])
+            self.rejecteds.append(demandCopy)
                 
     def reject_w_waste(self, i: int, agent):
         if self.DE[agent][i].ST == -2:
@@ -552,8 +704,8 @@ class Somn(ParallelEnv):
     
     def atualiza_upper_bounds(self, agent):
         # Atualiza o upper bounds
-        if np.amax(self.ub_MT) <= np.amax(self.MT):
-            self.ub_MT = np.full(self.M, np.amax(self.MT)) 
+        if np.amax(self.ub_MT) <= np.amax(self.MT[agent]):
+            self.ub_MT = np.full(self.M, np.amax(self.MT[agent])) 
 
         if np.amax(self.ub_BA) <= np.amax(self.BA[agent]):
             self.ub_BA = np.full(self.M, np.amax(self.BA[agent]))
@@ -568,7 +720,7 @@ class Somn(ParallelEnv):
         DE_arrayState = []
         FT_arrayState = []
 
-        for i in range(self.N):
+        for i in range(len(self.DE[agent])):
             aux_row = [
                 self.normaliza(x=self.DE[agent][i].ST, min=self.lb_ST, max=self.ub_ST),
 
@@ -594,7 +746,7 @@ class Somn(ParallelEnv):
 
             ]
             DE_arrayState.append(aux_row)
-        for i in range(self.N):
+        for i in range(len(self.DE[agent])):
             aux_FT = self.normaliza(x=self.DE[agent][i].FT, min=self.lb_FT, max=self.ub_FT)
             FT_arrayState.append(aux_FT)
         
@@ -618,14 +770,15 @@ class Somn(ParallelEnv):
         Primeira versão vai fazer uma iteração para cada episódio ...
         O Tempo t precisa ser controlado
         """
-  
+        self.stepnum += 1
+
         info = {f"{i}" : {} for i in range(len(self.possible_agents))}
         observation = {f"{i}" : {} for i in range(len(self.possible_agents))}
         done = {f"{i}": {} for i in range(len(self.possible_agents))}
         truncated = {f"{i}" : {} for i in range(len(self.possible_agents))}
 
         for agent in actions:
-            
+
             action = actions[agent]
             agent = int(agent)
 
@@ -653,17 +806,16 @@ class Somn(ParallelEnv):
             # entra em order_receive_and_match() senao pula para plan()
             if len(Somn.priorq[agent][Somn.objetivo[agent]]) == 0:
                 covered = False
-                #PROBLEMA
                 while not covered:
-                    covered = self.order_receive_and_match(agent)
+                    covered = self.order_receive_and_match(agent) 
                     
             self.plan(Somn.time[agent], action, agent)
-            for i in range(Demand.N):
+            for i in range(len(self.DE[agent])):
                 self.produce(Somn.time[agent], i, agent)
                 self.dispatch(i, agent)
                 self.store(i, agent)
                 self.reject(i, agent)
-                self.reject_w_waste(i, agent)
+                self.reject_w_waste(i, agent)  
 
             if Somn.objetivo[agent] == 0: # lucro
                 self.totReward = self.rw_pr
@@ -729,14 +881,15 @@ class Somn(ParallelEnv):
                     "acao_on_state_plan": self.acao_on_state_plan,
                     "carga_on_state_plan": self.carga_on_state_plan,
                     "patio_on_state_plan": self.patio_on_state_plan,
-                    "yard" : (self.YA[agent].cont/self.YA[agent].Y)*100
+                    "yard" : (self.YA[agent].cont/self.YA[agent].Y)*100,
+                    "reject_all": self.demands_rejects_all
                     }  
             
             # observação
             self.DE_state, self.FT_state = self.observa_demanda(agent)
             observation[f"{agent}"] = {
                 "time": np.array([self.normaliza(self.time[agent], self.lb_time, self.ub_time)]),
-                "MT": self.normaliza(self.MT, self.lb_MT, self.ub_MT),
+                "MT": self.normaliza(self.MT[agent], self.lb_MT, self.ub_MT),
                 "EU": self.normaliza(self.EU[agent], self.lb_EU, self.ub_EU),
                 "BA": self.normaliza(self.BA[agent], self.lb_BA, self.ub_BA),
                 "IN": self.normaliza(self.IN[agent], self.lb_IN, self.ub_IN),
@@ -754,6 +907,12 @@ class Somn(ParallelEnv):
 
         if observation == {}:
             print("\n\n\nVAZIOOOOOOOOOOOOOOOOOO\n\n\n")
+        
+        self.aux = self.rejecteds
+        for i in self.rejecteds:
+            self.rejected(i)
+
+        self.rejecteds = self.aux
 
         return (
             observation,
@@ -776,12 +935,8 @@ class Somn(ParallelEnv):
         # Somn.priorqsu = heapdict()
         # Somn.priorqva = heapdict()
 
-        self.match = []
+        self.match = []  
 
-        for i in range(len(self.possible_agents)):
-            self.match.append(np.zeros(self.N))
-
-        self.MT = np.random.randint(0, self.MAXFT, self.M)
         self.EU = {agent : np.random.random(self.M) * self.MAXEU for agent in range(self.num_agents)}
         self.BA = {agent : np.random.randint(10, 10*self.MAXFT, self.M) for agent in range(self.num_agents)}
         self.IN = {agent : np.random.randint(0, self.MAXFT, self.M) for agent in range(self.num_agents)}
@@ -791,9 +946,6 @@ class Somn(ParallelEnv):
         # wandb.log({
         #     'reject_w_waste Somn' : self.statistcs[agent].reject_w_waste
         # })
-
-        for agent in range(len(self.agents)):
-            Somn.time[agent] = 1
 
         self.reward = {}
         self.penalty = {}
@@ -817,19 +969,23 @@ class Somn(ParallelEnv):
                 for _ in range(self.N)
             ]
 
+            self.match.append(np.zeros(self.N))
+            self.MT[agent] = np.random.randint(0, self.MAXFT, self.M)
+            Somn.time[agent] = 1
+
+            self.rejecteds = []
+            self.demands_rejects_all = 0
+
             self.DE.append(agentDemands)
             self.YA.append(Yard(self.Y))
             self.statistcs[agent].load = 0
             self.statistcs[agent].reject = 0
             self.statistcs[agent].production_w_waste=0
 
-        # tira todas as demandas de FREE(-1) para READY(0)
-        for agent in range(len(self.agents)):
             for i in range(self.N):
                 self.DE[agent][i](Somn.time[agent], self.statistcs[agent].cont, self.statistcs[agent].load)
 
             self.DE_state, self.FT_state = self.observa_demanda(agent)
-
         
         #############################################################################################################################    
         info = {f"{i}" : {} for i in range(self.num_agents)}
@@ -839,7 +995,7 @@ class Somn(ParallelEnv):
         for agent in range(len(self.agents)):
             observation = {
                 "time": np.array([self.normaliza(self.time[agent], self.lb_time, self.ub_time)]),
-                "MT": self.normaliza(self.MT, self.lb_MT, self.ub_MT),
+                "MT": self.normaliza(self.MT[agent], self.lb_MT, self.ub_MT),
                 "EU": self.normaliza(self.EU[agent], self.lb_EU, self.ub_EU),
                 "BA": self.normaliza(self.BA[agent], self.lb_BA, self.ub_BA),
                 "IN": self.normaliza(self.IN[agent], self.lb_IN, self.ub_IN),

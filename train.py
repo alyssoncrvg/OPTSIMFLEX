@@ -42,7 +42,7 @@ if __name__ == "__main__":
         )
     )
 
-    stop = {"timesteps_total": 60000}
+    stop = {"timesteps_total": 120000}
 
     tune.Tuner(
         "PPO",

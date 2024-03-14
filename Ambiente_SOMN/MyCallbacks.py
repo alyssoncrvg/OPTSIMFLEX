@@ -23,6 +23,7 @@ class MyCallbacks(DefaultCallbacks):
         self.csv_path_action = os.path.join(save_dir, "Action.csv")
         self.csv_path_reject = os.path.join(save_dir, "Reject.csv")
         self.csv_path_rejectwwast = os.path.join(save_dir, "Reject_w_wast.csv")
+        self.csv_path_rejectall = os.path.join(save_dir, "RejectAll.csv")
 
         self.step = 0
         self.numepisode = 0
@@ -79,12 +80,19 @@ class MyCallbacks(DefaultCallbacks):
         with open(self.csv_path_rejectwwast, mode='a', newline='') as arquivo_csv:
             escritor_csv = csv.writer(arquivo_csv)
             escritor_csv.writerow([episode, agent_id, yard_value])
+    
+    def salvar_dados_csv_reject_all(self, episode, yard_value):
+        # Adiciona uma nova linha ao arquivo CSV
+        with open(self.csv_path_rejectall, mode='a', newline='') as arquivo_csv:
+            escritor_csv = csv.writer(arquivo_csv)
+            escritor_csv.writerow([episode, yard_value])
         
     def on_episode_start(self, *, worker: RolloutWorker, base_env, policies, episode, env_index, **kwargs) -> None:
         self.yard_hist = {}
         self.action_hist = {}
         self.reject = {}
         self.reject_w = {}
+        self.reject_all = 0
 
     def on_episode_step(self, *, worker: RolloutWorker, base_env, policies=None, episode, env_index=None, **kwargs):
         self.step+=1
@@ -112,6 +120,8 @@ class MyCallbacks(DefaultCallbacks):
             
             if action_value is not None:
                 self.salvar_dados_csv_action(self.step, agent_id, action_value)
+        
+        self.reject_all = agent_info.get("reject_all")
     
     def on_episode_end(self, *, worker: RolloutWorker, base_env, policies, episode, env_index, **kwargs) -> None:
         for agent_id in self.yard_hist:
@@ -122,3 +132,5 @@ class MyCallbacks(DefaultCallbacks):
 
             self.salvar_dados_csv_reject(self.numepisode, agent_id, self.reject[agent_id])
             self.salvar_dados_csv_reject_w_wast(self.numepisode, agent_id, self.reject_w[agent_id])
+
+        self.salvar_dados_csv_reject_all(self.numepisode, self.reject_all)
