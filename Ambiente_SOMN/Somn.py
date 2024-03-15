@@ -149,6 +149,7 @@ class Somn(ParallelEnv):
         self.rejecteds = []
         self.demands_rejects_all = 0
         self.aux = []
+        self.acept_reject = []
 
         self.MT = []
 
@@ -163,6 +164,7 @@ class Somn(ParallelEnv):
             self.YA.append(Yard(Y))
             self.statistcs.append(Statistcs())
             self.MT.append([])
+            self.acept_reject.append(0)
 
         ######################
         #      lb e ub       #
@@ -566,7 +568,13 @@ class Somn(ParallelEnv):
     
     def destine(self, agents: list, demand: Demand) -> int:
         """
-            Define a qual agente certa demanda vai ser destinada com base no calculo da fila de prioridade
+            Define a qual agente certa demanda vai ser destinada com base no calculo da fila de prioridade\n
+            A politica de decisão é feita da seguinte maneira:
+            - 
+            - Verifica se agentes tem um objetivo que prioriza melhor essa demanda a ele (o seu maior valor de prioridade de acordo com o objetivo do agente)
+            - Escolhe o agente com a menor fila de prioridade, assim não inflando apenas um agente com essas demandas rejeitadas
+            - Verifica se o agente tem um espaço de demanda livre para que ela seja acolhida
+            - Se as opções assima não forem satisfeitas retorna o valor de -1 indicando que não tem agente presente para ficar com essa demanda
         """
         agentes = agents
         obj = []
@@ -579,14 +587,26 @@ class Somn(ParallelEnv):
 
         valores = [prio_lucro, prio_variabilidade, prio_sustentabilidade ]
 
-        while len(agentes) > 0:
+        for k in range(len(valores)):
             maximo = max(valores)
-            if valores.index(maximo) in obj:
-                return agentes[valores.index(maximo)]
-            else:
-                valores.remove(maximo)
+            qtd = {}
+            for i in agentes:
+                if self.objetivo[i] == valores.index(maximo):
+                    qtd[i] = len(Somn.priorq[i][self.objetivo[i]])
+            
+            while len(qtd)>0:
+                minimo = min(qtd, key=qtd.get)
 
+                for j in self.DE[minimo]:
+                    if j.ST == -1:
+                        return minimo
+                    
+                del qtd[minimo]
 
+            index = valores.index(maximo)
+            valores[index] = -1
+        
+        return -1
 
     
     def rejected(self, demand: Demand):
@@ -605,22 +625,23 @@ class Somn(ParallelEnv):
         # self.DE[agent].remove(demand)
         if len(demand.rejects) < self.num_agents:
             possibles = [i for i in range(self.num_agents) if i not in agents]
-            novoAgente = random.choice(possibles)
-            # novoAgente = self.destine(possibles, demand)
+            # novoAgente = random.choice(possibles)
+            novoAgente = self.destine(possibles, demand)
 
-            for num, i in enumerate(self.DE[novoAgente]):
-                if i.ST == -1:
-                    self.DE[novoAgente][num] = demand
-                    self.aux.remove(demand)
-                    self.match[novoAgente][num] = 0
-                    self.DE[novoAgente][num].posDemand = num
-                    alocado = True
-                    break
+            if novoAgente != -1:
+                for num, i in enumerate(self.DE[novoAgente]):
+                    if i.ST == -1:
+                        self.DE[novoAgente][num] = demand
+                        self.aux.remove(demand)
+                        self.match[novoAgente][num] = 0
+                        self.DE[novoAgente][num].posDemand = num
+                        alocado = True
+                        break
 
-            if alocado:
-                covered = False
-                while not covered:
-                    covered = self.order_receive_and_match(novoAgente, demand) #AGENTE COM STATUS DE PRODUÇÃO PORÉM MATCH 0 GERA LAÇO INFINITO
+                if alocado:
+                    covered = False
+                    while not covered:
+                        covered = self.order_receive_and_match(novoAgente, demand)
         else:
             self.demands_rejects_all += 1
         
@@ -629,6 +650,8 @@ class Somn(ParallelEnv):
         
         if self.DE[agent][i].ST == 3:
             if self.DE[agent][i].TP < t:  ### TP eh resultado de LT(#f) + RAND
+                if self.DE[agent][i].rejects != []:
+                    self.acept_reject[agent] += 1
                 #Somn.producing = Somn.producing - 1
                 self.statistcs[agent].load = self.statistcs[agent].load - 1
                 if t < self.DE[agent][i].DO:
@@ -882,7 +905,8 @@ class Somn(ParallelEnv):
                     "carga_on_state_plan": self.carga_on_state_plan,
                     "patio_on_state_plan": self.patio_on_state_plan,
                     "yard" : (self.YA[agent].cont/self.YA[agent].Y)*100,
-                    "reject_all": self.demands_rejects_all
+                    "reject_all": self.demands_rejects_all,
+                    "acept_reject": self.acept_reject[agent]
                     }  
             
             # observação
@@ -961,6 +985,8 @@ class Somn(ParallelEnv):
 
         self.DE = []
 
+        self.acept_reject = []
+
         for agent in range(len(self.agents)):
             agentDemands = [
                 Demand(
@@ -981,6 +1007,8 @@ class Somn(ParallelEnv):
             self.statistcs[agent].load = 0
             self.statistcs[agent].reject = 0
             self.statistcs[agent].production_w_waste=0
+
+            self.acept_reject.append(0)
 
             for i in range(self.N):
                 self.DE[agent][i](Somn.time[agent], self.statistcs[agent].cont, self.statistcs[agent].load)

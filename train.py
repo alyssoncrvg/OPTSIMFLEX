@@ -12,13 +12,14 @@ from Ambiente_SOMN.MyCallbacks import MyCallbacks
 objetivo = {
         0 : 0,
         1 : 1,
-        2 : 2
+        2 : 2,
+        3 : 0
     }
 
 policies = ["Lucro", "Variabilidade", "Sustentabilidade"]
 
 def env_creator(args):
-    return ParallelPettingZooEnv(make_env(-1, 3, objetivo))
+    return ParallelPettingZooEnv(make_env(-1, len(objetivo), objetivo))
 
 def policy_mapping_fn(agent_id, episode, worker, **kwargs):
     policie = objetivo[int(agent_id)]
@@ -37,8 +38,8 @@ if __name__ == "__main__":
         .resources(num_gpus=int(os.environ.get("RLLIB_NUM_GPUS", "0")))
         .rollouts(num_rollout_workers=1)
         .multi_agent(
-            policies=policies,
-            policy_mapping_fn=policy_mapping_fn,
+            policies=env.get_agent_ids(),
+            policy_mapping_fn=(lambda agent_id, *args, **kwargs: agent_id),
         )
     )
 

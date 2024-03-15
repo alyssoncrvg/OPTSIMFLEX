@@ -6,7 +6,9 @@ from Ambiente_SOMN.Statistcs import Statistcs
 objetivo = {
         0 : 0,
         1 : 1,
-        2 : 2
+        2 : 2,
+        3 : 0
+
     }
 env = make_env(-1,3,objetivo)
 
