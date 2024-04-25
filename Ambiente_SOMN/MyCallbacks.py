@@ -56,14 +56,21 @@ class MyCallbacks(DefaultCallbacks):
 
             # Escreve o cabeçalho se o arquivo estiver vazio
             if os.path.getsize(self.csv_path_action) == 0:
-                escritor_csv_action.writerow(["Step", "Teject_Wast"])
+                escritor_csv_action.writerow(["Step", "Agent_ID", "Reject_Wast"])
         
         with open(self.csv_path_aceptreject, mode='a', newline='') as arquivo_csv:
             escritor_csv_action = csv.writer(arquivo_csv)
 
             # Escreve o cabeçalho se o arquivo estiver vazio
             if os.path.getsize(self.csv_path_action) == 0:
-                escritor_csv_action.writerow(["Step", "Agent_ID", "Teject_Wast"])
+                escritor_csv_action.writerow(["Step", "Agent_ID", "Acept_Reject"])
+        
+        with open(self.csv_path_rejectall, mode='a', newline='') as arquivo_csv:
+            escritor_csv_action = csv.writer(arquivo_csv)
+
+            # Escreve o cabeçalho se o arquivo estiver vazio
+            if os.path.getsize(self.csv_path_action) == 0:
+                escritor_csv_action.writerow(["Episode", "RejectAll"])
 
     def salvar_dados_csv_yard(self, episode, agent_id, yard_value):
         # Adiciona uma nova linha ao arquivo CSV

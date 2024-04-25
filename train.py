@@ -13,7 +13,9 @@ objetivo = {
         0 : 0,
         1 : 1,
         2 : 2,
-        3 : 0
+        3 : 0,
+        4 : 1,
+        5 : 2
     }
 
 policies = ["Lucro", "Variabilidade", "Sustentabilidade"]
@@ -43,7 +45,7 @@ if __name__ == "__main__":
         )
     )
 
-    stop = {"timesteps_total": 120000}
+    stop = {"timesteps_total": 4000 * 100}
 
     tune.Tuner(
         "PPO",
@@ -52,7 +54,7 @@ if __name__ == "__main__":
             checkpoint_config=air.CheckpointConfig(
                 checkpoint_frequency=10,
             ),
-            callbacks=[WandbLoggerCallback(project="Treinamento multi-agent", group="Testes Comunicação")]
+            callbacks=[WandbLoggerCallback(project="Results_Finals", group="3")]
         ),
         param_space=config,
     ).fit()

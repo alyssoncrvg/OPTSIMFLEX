@@ -644,6 +644,7 @@ class Somn(ParallelEnv):
                         covered = self.order_receive_and_match(novoAgente, demand)
         else:
             self.demands_rejects_all += 1
+            self.aux.remove(demand) #ALTERAÇÃO VÁLIDA APENAS PARA OS DOIS ÚLTIMOS TREINAMENTOS DE 6 AGENTES COM COMPARAÇÃO, PEGAR O GRÁFICO DA MÉDIA DESSES DOIS AGENTES
         
 
     def produce(self, t: int, i: int, agent):
