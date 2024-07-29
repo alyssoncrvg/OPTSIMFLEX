@@ -78,9 +78,17 @@ class Somn(ParallelEnv):
         # Somn.priorqsu = heapdict()
         # Somn.priorqva = heapdict()
         Somn.time =[]
+        
+        """
+        Variáveis de verificação do que ocorre nas transferências de demandas
+        """
+        self.total_acepts_produce = []
+        self.total_acepts_yard = []
 
         for i in range(numAgents):
             Somn.time.append(1)
+            self.total_acepts_produce.append(0)
+            self.total_acepts_yard.append(0)
 
         ##########################################################################
         self.agents = {f'{i}' for i in range(numAgents)}
@@ -658,8 +666,14 @@ class Somn(ParallelEnv):
                 if t < self.DE[agent][i].DO:
                     self.DE[agent][i].ST = 5  ## produced status --- remember to run time for each case
                     # print("\n Destination: Enviou", Yard.cont)
+                    if self.DE[agent][i].rejects != []:
+                        self.total_acepts_produce[agent] += 1
+                    
                 else:
                     self.DE[agent][i].ST = 4  ## stored status
+
+                    if self.DE[agent][i].rejects != []:
+                        self.total_acepts_yard[agent] += 1
                     
                     # VALIDAÇÃO DE TESTE PARA YARD = 0 #####################################################
                     if self.Y == 0:
@@ -907,7 +921,9 @@ class Somn(ParallelEnv):
                     "patio_on_state_plan": self.patio_on_state_plan,
                     "yard" : (self.YA[agent].cont/self.YA[agent].Y)*100,
                     "reject_all": self.demands_rejects_all,
-                    "acept_reject": self.acept_reject[agent]
+                    "acept_reject": self.acept_reject[agent],
+                    "produced_reject": self.total_acepts_produce[agent],
+                    "yard_reject": self.total_acepts_yard[agent]
                     }  
             
             # observação
@@ -988,6 +1004,9 @@ class Somn(ParallelEnv):
 
         self.acept_reject = []
 
+        self.total_acepts_produce = []
+        self.total_acepts_yard = []
+
         for agent in range(len(self.agents)):
             agentDemands = [
                 Demand(
@@ -1010,6 +1029,8 @@ class Somn(ParallelEnv):
             self.statistcs[agent].production_w_waste=0
 
             self.acept_reject.append(0)
+            self.total_acepts_yard.append(0)
+            self.total_acepts_produce.append(0)
 
             for i in range(self.N):
                 self.DE[agent][i](Somn.time[agent], self.statistcs[agent].cont, self.statistcs[agent].load)

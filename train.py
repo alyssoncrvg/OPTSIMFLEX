@@ -1,4 +1,3 @@
-import argparse
 import os
 from ray import air, tune
 from ray.tune.registry import register_env
@@ -54,7 +53,7 @@ if __name__ == "__main__":
             checkpoint_config=air.CheckpointConfig(
                 checkpoint_frequency=10,
             ),
-            callbacks=[WandbLoggerCallback(project="Results_Finals", group="3")]
+            callbacks=[WandbLoggerCallback(project="Deatails more", group="3")]
         ),
         param_space=config,
     ).fit()

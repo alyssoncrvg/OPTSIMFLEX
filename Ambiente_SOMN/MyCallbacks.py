@@ -115,6 +115,10 @@ class MyCallbacks(DefaultCallbacks):
         self.reject_w = {}
         self.reject_all = 0
         self.acept = {}
+        self.sum_acept = 0
+        self.sum_reject = 0
+        self.acept_produced = {}
+        self.acept_yard = {}
 
     def on_episode_step(self, *, worker: RolloutWorker, base_env, policies=None, episode, env_index=None, **kwargs):
         self.step+=1
@@ -135,6 +139,9 @@ class MyCallbacks(DefaultCallbacks):
 
             self.acept[agent_id] = acept_value
 
+            self.acept_produced[agent_id] = agent_info.get("produced_reject")
+            self.acept_yard[agent_id] = agent_info.get("yard_reject")
+
             episode.custom_metrics[f"Yard agent {agent_id}"] = yard_value
             episode.custom_metrics[f"Action agent {agent_id}"] = action_value
             episode.custom_metrics[f"Acept_reject agent {agent_id}"] = acept_value
@@ -154,11 +161,17 @@ class MyCallbacks(DefaultCallbacks):
         for agent_id in self.yard_hist:
             episode.custom_metrics[f"reject agent {agent_id}"] = self.reject[agent_id]
             episode.custom_metrics[f"Reject_w_wast {agent_id}"] = self.reject_w[agent_id]
+            episode.custom_metrics[f"Acept_produced_agent {agent_id}"] = self.acept_produced[agent_id]
+            episode.custom_metrics[f"Acept_Yard_agent {agent_id}"] = self.acept_yard[agent_id]
 
             self.numepisode += 1
+            self.sum_acept += self.acept[agent_id]
+            self.sum_reject += self.reject[agent_id]
 
             self.salvar_dados_csv_reject(self.numepisode, agent_id, self.reject[agent_id])
             self.salvar_dados_csv_reject_w_wast(self.numepisode, agent_id, self.reject_w[agent_id])
             self.salvar_dados_csv_acept(self.numepisode, agent_id, self.acept[agent_id])
 
         self.salvar_dados_csv_reject_all(self.numepisode, self.reject_all)
+        episode.custom_metrics[f"Sum_Acept"] = self.sum_acept
+        episode.custom_metrics[f"Sum_Reject"] = self.sum_reject
