@@ -84,11 +84,17 @@ class Somn(ParallelEnv):
         """
         self.total_acepts_produce = []
         self.total_acepts_yard = []
+        self.total_match = []
+        self.Match_Reject = []
+        self.total_Penalty = []
 
         for i in range(numAgents):
             Somn.time.append(1)
             self.total_acepts_produce.append(0)
             self.total_acepts_yard.append(0)
+            self.total_match.append(0)
+            self.Match_Reject.append(0)
+            self.total_Penalty.append(0)
 
         ##########################################################################
         self.agents = {f'{i}' for i in range(numAgents)}
@@ -184,7 +190,7 @@ class Somn(ParallelEnv):
         # time varia de 1 a 100 (era de 1 ate 10*MAXDO + M)
         self.lb_time = 1
         # self.ub_time = 10 * self.MAXDO + self.M
-        self.ub_time = 100
+        self.ub_time = 100 #testar com 200
 
         # ST varia de -2 a 5
         self.lb_ST = -2
@@ -347,12 +353,12 @@ class Somn(ParallelEnv):
         # se for um escalar evitar a divisao por zero.
         if type(x).__module__ != np.__name__:
             if max == min: return 1
-        x_norm = (x - min) / (max - min)
+        x_norm = (x - min) / (max - min + 0.00001)
         x_norm = np.clip(x_norm, 0.0, 1.0).astype(np.float64)
         return x_norm
 
     def readDemand(self, agent, demand: Demand = None):
-        if demand == None:
+        if demand is None:
             for i in range(len(self.DE[agent])):
                 if (self.DE[agent][i].ST == -1):  # free(-1)
                     self.DE[agent][i](Somn.time[agent], self.statistcs[agent].cont, self.statistcs[agent].load)
@@ -366,7 +372,7 @@ class Somn(ParallelEnv):
                 self.match[agent][demand.posDemand] = 0
     
     def match_demand_with_inventory(self, agent, demand: Demand = None) -> bool:
-        if demand == None:
+        if demand is None:
             for i in range(len(self.DE[agent])):
                 if self.DE[agent][i].ST == 0: ## SÓ PODE DAR MATCH DEMANDAS CHEGADAS
                     if self.Y > 0: # ALTERAÇÃO PARA TESTE DE YARD == 0
@@ -386,6 +392,10 @@ class Somn(ParallelEnv):
                             # libera o espaço i para entrar outra demanda
                             self.DE[agent][i].ST = -1
                             self.match[agent][i] = 0
+                            self.total_match[agent] += 1
+                            if self.DE[agent][i].rejects != []:
+                                self.Match_Reject[agent] += 1
+
 
         else:
             if demand.ST == 0:
@@ -399,10 +409,13 @@ class Somn(ParallelEnv):
 
                         demand.ST = -1
                         self.match[agent][demand.posDemand] = 0
+                        self.total_match[agent] += 1
+                        if demand.rejects != []:
+                            self.Match_Reject[agent] += 1
 
     def stock_covers_demand(self, agent, demand: Demand = None):
         covered = True
-        if demand == None:
+        if demand is None:
 
             for i in range(len(self.DE[agent])):
                 if self.DE[agent][i].ST == 0: # status RECEIVED
@@ -477,7 +490,7 @@ class Somn(ParallelEnv):
         return covered
 
     def order_receive_and_match(self, agent, demand: Demand = None):
-        if demand == None:
+        if demand is None:
             covered = False
             # receive RAW MATERIAL AND ORDERS (DEMANDS)
             self.MT[agent] = np.array([random.randint(0, i) if i > 0 else 0 for i in self.IN[agent]])
@@ -500,12 +513,12 @@ class Somn(ParallelEnv):
             covered = False
             self.MT[agent] = np.array([random.randint(0,i) if i > 0 else 0 for i in self.IN[agent]])
             self.readDemand(agent, demand)
-            self.match_demand_with_inventory(agent)
+            self.match_demand_with_inventory(agent, demand)
 
             self.IN[agent] -= self.MT[agent]
             self.BA[agent] += self.MT[agent]
 
-            if not self.stock_covers_demand(agent): 
+            if not self.stock_covers_demand(agent, demand): 
                 self.IN[agent] = np.array(
                     [random.randint(0, i) if i > 0 else 0 for i in self.IN[agent]]
                 ).astype(np.int64)
@@ -533,7 +546,11 @@ class Somn(ParallelEnv):
                     #         flag = 1
 
                     # salva o valor do patio depois da acao
-                    self.patio_on_state_plan.append((self.YA[agent].cont/self.YA[agent].Y)*100)
+                    if self.Y ==0:
+                        tamYard = 100 
+                    else:
+                        tamYard = (self.YA[agent].cont/self.YA[agent].Y)*100
+                    self.patio_on_state_plan.append(tamYard)
                     # salva o valor da carga depois da acao
                     self.carga_on_state_plan.append(sum([self.DE[agent][i].ST == 3 for i in range(len(self.DE[agent]))]))
                     # salva a acao
@@ -858,15 +875,15 @@ class Somn(ParallelEnv):
             if Somn.objetivo[agent] == 0: # lucro
                 self.totReward = self.rw_pr
                 self.reward[f"{agent}"] = self.totReward - self.totPenalty
-                self.penalty[agent] = self.totPenalty
+                self.total_Penalty[agent] += self.totPenalty
             if Somn.objetivo[agent] == 1: # variabilidade
                 self.totReward = self.rw_va
                 self.reward[f"{agent}"] = self.totReward - self.totPenalty2
-                self.penalty[agent] = self.totPenalty2
+                self.total_Penalty[agent] += self.totPenalty2
             if Somn.objetivo[agent] == 2: # sustentabilidade
                 self.totReward = self.rw_su
                 self.reward[f"{agent}"] = self.totReward - self.totPenalty2
-                self.penalty[agent] = self.totPenalty2
+                self.total_Penalty[agent] += self.totPenalty2
             
             # desconta as penalidades
             self.rw_pr -= self.totPenalty
@@ -904,6 +921,11 @@ class Somn(ParallelEnv):
             self.atualiza_upper_bounds(agent)
         
             # Informações adicionais
+
+            if self.Y ==0:
+                tamYard = 100 
+            else:
+                tamYard = (self.YA[agent].cont/self.YA[agent].Y)*100
             
             info[f"{agent}"] = {"rw": self.reward[f"{agent}"],
                     "rw_pr": self.rw_pr,
@@ -919,11 +941,14 @@ class Somn(ParallelEnv):
                     "acao_on_state_plan": self.acao_on_state_plan,
                     "carga_on_state_plan": self.carga_on_state_plan,
                     "patio_on_state_plan": self.patio_on_state_plan,
-                    "yard" : (self.YA[agent].cont/self.YA[agent].Y)*100,
+                    "yard" : tamYard,
                     "reject_all": self.demands_rejects_all,
                     "acept_reject": self.acept_reject[agent],
                     "produced_reject": self.total_acepts_produce[agent],
-                    "yard_reject": self.total_acepts_yard[agent]
+                    "yard_reject": self.total_acepts_yard[agent],
+                    "total_match": self.total_match[agent],
+                    "Math_Reject": self.Match_Reject[agent],
+                    "penalty": self.total_Penalty[agent]
                     }  
             
             # observação
@@ -1006,6 +1031,9 @@ class Somn(ParallelEnv):
 
         self.total_acepts_produce = []
         self.total_acepts_yard = []
+        self.total_match = []
+        self.Match_Reject = []
+        self.total_Penalty = []
 
         for agent in range(len(self.agents)):
             agentDemands = [
@@ -1031,6 +1059,9 @@ class Somn(ParallelEnv):
             self.acept_reject.append(0)
             self.total_acepts_yard.append(0)
             self.total_acepts_produce.append(0)
+            self.total_match.append(0)
+            self.Match_Reject.append(0)
+            self.total_Penalty.append(0)
 
             for i in range(self.N):
                 self.DE[agent][i](Somn.time[agent], self.statistcs[agent].cont, self.statistcs[agent].load)

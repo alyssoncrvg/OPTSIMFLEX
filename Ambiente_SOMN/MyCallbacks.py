@@ -119,6 +119,9 @@ class MyCallbacks(DefaultCallbacks):
         self.sum_reject = 0
         self.acept_produced = {}
         self.acept_yard = {}
+        self.total_match = {}
+        self.match_reject = {}
+        self.penalty = {}
 
     def on_episode_step(self, *, worker: RolloutWorker, base_env, policies=None, episode, env_index=None, **kwargs):
         self.step+=1
@@ -141,6 +144,9 @@ class MyCallbacks(DefaultCallbacks):
 
             self.acept_produced[agent_id] = agent_info.get("produced_reject")
             self.acept_yard[agent_id] = agent_info.get("yard_reject")
+            self.total_match[agent_id] = agent_info.get("total_match")
+            self.match_reject[agent_id] = agent_info.get("Math_Reject")
+            self.penalty[agent_id] = agent_info.get("penalty")
 
             episode.custom_metrics[f"Yard agent {agent_id}"] = yard_value
             episode.custom_metrics[f"Action agent {agent_id}"] = action_value
@@ -163,6 +169,9 @@ class MyCallbacks(DefaultCallbacks):
             episode.custom_metrics[f"Reject_w_wast {agent_id}"] = self.reject_w[agent_id]
             episode.custom_metrics[f"Acept_produced_agent {agent_id}"] = self.acept_produced[agent_id]
             episode.custom_metrics[f"Acept_Yard_agent {agent_id}"] = self.acept_yard[agent_id]
+            episode.custom_metrics[f"Total_Match_agent {agent_id}"] = self.total_match[agent_id]
+            episode.custom_metrics[f"Match_Reject_agent {agent_id}"] = self.match_reject[agent_id]
+            episode.custom_metrics[f"Penalty_agent {agent_id}"] = self.penalty[agent_id]
 
             self.numepisode += 1
             self.sum_acept += self.acept[agent_id]
