@@ -87,6 +87,7 @@ class Somn(ParallelEnv):
         self.total_match = []
         self.Match_Reject = []
         self.total_Penalty = []
+        self.tx_penalidade = 10
 
         for i in range(numAgents):
             Somn.time.append(1)
@@ -164,6 +165,8 @@ class Somn(ParallelEnv):
         self.demands_rejects_all = 0
         self.aux = []
         self.acept_reject = []
+        self.produced_yard = []
+        self.produced_wast = []
 
         self.MT = []
 
@@ -179,6 +182,8 @@ class Somn(ParallelEnv):
             self.statistcs.append(Statistcs())
             self.MT.append([])
             self.acept_reject.append(0)
+            self.produced_wast.append(0)
+            self.produced_yard.append(0)
 
         ######################
         #      lb e ub       #
@@ -688,9 +693,6 @@ class Somn(ParallelEnv):
                     
                 else:
                     self.DE[agent][i].ST = 4  ## stored status
-
-                    if self.DE[agent][i].rejects != []:
-                        self.total_acepts_yard[agent] += 1
                     
                     # VALIDAÇÃO DE TESTE PARA YARD = 0 #####################################################
                     if self.Y == 0:
@@ -725,13 +727,15 @@ class Somn(ParallelEnv):
 
     def store(self, i: int, agent):
         if self.DE[agent][i].ST == 4:
-            self.totPenalty += (self.YA[agent].cont/self.YA[agent].space) * self.DE[agent][i].AM * self.DE[agent][i].CO
+            self.totPenalty += (self.YA[agent].cont/self.YA[agent].space) * self.DE[agent][i].AM * self.DE[agent][i].CO * self.tx_penalidade
             tx_ambiente = self.DE[agent][i].err
             self.totPenalty += self.DE[agent][i].AM * self.DE[agent][i].PR * tx_ambiente * 0.01
             self.totPenalty2 += self.DE[agent][i].AM * self.DE[agent][i].PR * tx_ambiente * 0.01
                 
             self.DE[agent][i].ST = -1  # LIBERA O ESPAÇO APÓS CONTABILIZADO
             self.match[agent][i] = 0
+            if self.DE[agent][i].rejects != []:
+                self.total_acepts_yard[agent] += 1
             
     def reject(self, i: int, agent):
         if self.DE[agent][i].ST == 2:
@@ -749,13 +753,16 @@ class Somn(ParallelEnv):
                 
     def reject_w_waste(self, i: int, agent):
         if self.DE[agent][i].ST == -2:
-            self.totPenalty += self.DE[agent][i].AM * self.DE[agent][i].CO         # PENALIDADE PELO DESCARTE
+            self.totPenalty += self.DE[agent][i].AM * self.DE[agent][i].CO * self.tx_penalidade       # PENALIDADE PELO DESCARTE * taxa de utilização de recursos
             tx_ambiente = self.DE[agent][i].err
             self.totPenalty += self.DE[agent][i].AM * self.DE[agent][i].PR * tx_ambiente * 0.1
             self.totPenalty2 += self.DE[agent][i].AM * self.DE[agent][i].PR * tx_ambiente * 0.1
             
             self.DE[agent][i].ST = -1  # LIBERA O ESPAÇO APÓS CONTABILIZADO
             self.match[agent][i] = 0
+
+            if self.DE[agent][i].rejects != []:
+                self.produced_wast[agent] += 1
     
     def atualiza_upper_bounds(self, agent):
         # Atualiza o upper bounds
@@ -948,7 +955,8 @@ class Somn(ParallelEnv):
                     "yard_reject": self.total_acepts_yard[agent],
                     "total_match": self.total_match[agent],
                     "Math_Reject": self.Match_Reject[agent],
-                    "penalty": self.total_Penalty[agent]
+                    "penalty": self.totPenalty + self.totPenalty2,
+                    "produced_wast": self.produced_wast[agent]
                     }  
             
             # observação
@@ -1034,6 +1042,8 @@ class Somn(ParallelEnv):
         self.total_match = []
         self.Match_Reject = []
         self.total_Penalty = []
+        self.produced_yard = []
+        self.produced_wast = []
 
         for agent in range(len(self.agents)):
             agentDemands = [
@@ -1062,6 +1072,8 @@ class Somn(ParallelEnv):
             self.total_match.append(0)
             self.Match_Reject.append(0)
             self.total_Penalty.append(0)
+            self.produced_wast.append(0)
+            self.produced_yard.append(0)
 
             for i in range(self.N):
                 self.DE[agent][i](Somn.time[agent], self.statistcs[agent].cont, self.statistcs[agent].load)

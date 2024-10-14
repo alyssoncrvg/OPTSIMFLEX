@@ -29,84 +29,84 @@ class MyCallbacks(DefaultCallbacks):
         self.step = 0
         self.numepisode = 0
 
-        # Abre o arquivo CSV para escrita no modo 'a' (append)
-        with open(self.csv_path_yard, mode='a', newline='') as arquivo_csv:
-            escritor_csv_yard = csv.writer(arquivo_csv)
+    #     # Abre o arquivo CSV para escrita no modo 'a' (append)
+    #     with open(self.csv_path_yard, mode='a', newline='') as arquivo_csv:
+    #         escritor_csv_yard = csv.writer(arquivo_csv)
 
-            # Escreve o cabeçalho se o arquivo estiver vazio
-            if os.path.getsize(self.csv_path_yard) == 0:
-                escritor_csv_yard.writerow(["Step", "Agent_ID", "Yard"])
+    #         # Escreve o cabeçalho se o arquivo estiver vazio
+    #         if os.path.getsize(self.csv_path_yard) == 0:
+    #             escritor_csv_yard.writerow(["Step", "Agent_ID", "Yard"])
         
-        with open(self.csv_path_action, mode='a', newline='') as arquivo_csv:
-            escritor_csv_action = csv.writer(arquivo_csv)
+    #     with open(self.csv_path_action, mode='a', newline='') as arquivo_csv:
+    #         escritor_csv_action = csv.writer(arquivo_csv)
 
-            # Escreve o cabeçalho se o arquivo estiver vazio
-            if os.path.getsize(self.csv_path_action) == 0:
-                escritor_csv_action.writerow(["Step", "Agent_ID", "Action"])
+    #         # Escreve o cabeçalho se o arquivo estiver vazio
+    #         if os.path.getsize(self.csv_path_action) == 0:
+    #             escritor_csv_action.writerow(["Step", "Agent_ID", "Action"])
         
-        with open(self.csv_path_reject, mode='a', newline='') as arquivo_csv:
-            escritor_csv_action = csv.writer(arquivo_csv)
+    #     with open(self.csv_path_reject, mode='a', newline='') as arquivo_csv:
+    #         escritor_csv_action = csv.writer(arquivo_csv)
 
-            # Escreve o cabeçalho se o arquivo estiver vazio
-            if os.path.getsize(self.csv_path_action) == 0:
-                escritor_csv_action.writerow(["Step", "Agent_ID", "Reject"])
+    #         # Escreve o cabeçalho se o arquivo estiver vazio
+    #         if os.path.getsize(self.csv_path_action) == 0:
+    #             escritor_csv_action.writerow(["Step", "Agent_ID", "Reject"])
         
-        with open(self.csv_path_rejectwwast, mode='a', newline='') as arquivo_csv:
-            escritor_csv_action = csv.writer(arquivo_csv)
+    #     with open(self.csv_path_rejectwwast, mode='a', newline='') as arquivo_csv:
+    #         escritor_csv_action = csv.writer(arquivo_csv)
 
-            # Escreve o cabeçalho se o arquivo estiver vazio
-            if os.path.getsize(self.csv_path_action) == 0:
-                escritor_csv_action.writerow(["Step", "Agent_ID", "Reject_Wast"])
+    #         # Escreve o cabeçalho se o arquivo estiver vazio
+    #         if os.path.getsize(self.csv_path_action) == 0:
+    #             escritor_csv_action.writerow(["Step", "Agent_ID", "Reject_Wast"])
         
-        with open(self.csv_path_aceptreject, mode='a', newline='') as arquivo_csv:
-            escritor_csv_action = csv.writer(arquivo_csv)
+    #     with open(self.csv_path_aceptreject, mode='a', newline='') as arquivo_csv:
+    #         escritor_csv_action = csv.writer(arquivo_csv)
 
-            # Escreve o cabeçalho se o arquivo estiver vazio
-            if os.path.getsize(self.csv_path_action) == 0:
-                escritor_csv_action.writerow(["Step", "Agent_ID", "Acept_Reject"])
+    #         # Escreve o cabeçalho se o arquivo estiver vazio
+    #         if os.path.getsize(self.csv_path_action) == 0:
+    #             escritor_csv_action.writerow(["Step", "Agent_ID", "Acept_Reject"])
         
-        with open(self.csv_path_rejectall, mode='a', newline='') as arquivo_csv:
-            escritor_csv_action = csv.writer(arquivo_csv)
+    #     with open(self.csv_path_rejectall, mode='a', newline='') as arquivo_csv:
+    #         escritor_csv_action = csv.writer(arquivo_csv)
 
-            # Escreve o cabeçalho se o arquivo estiver vazio
-            if os.path.getsize(self.csv_path_action) == 0:
-                escritor_csv_action.writerow(["Episode", "RejectAll"])
+    #         # Escreve o cabeçalho se o arquivo estiver vazio
+    #         if os.path.getsize(self.csv_path_action) == 0:
+    #             escritor_csv_action.writerow(["Episode", "RejectAll"])
 
-    def salvar_dados_csv_yard(self, episode, agent_id, yard_value):
-        # Adiciona uma nova linha ao arquivo CSV
-        with open(self.csv_path_yard, mode='a', newline='') as arquivo_csv:
-            escritor_csv = csv.writer(arquivo_csv)
-            escritor_csv.writerow([episode, agent_id, yard_value])
+    # def salvar_dados_csv_yard(self, episode, agent_id, yard_value):
+    #     # Adiciona uma nova linha ao arquivo CSV
+    #     with open(self.csv_path_yard, mode='a', newline='') as arquivo_csv:
+    #         escritor_csv = csv.writer(arquivo_csv)
+    #         escritor_csv.writerow([episode, agent_id, yard_value])
     
-    def salvar_dados_csv_action(self, episode, agent_id, yard_value):
-        # Adiciona uma nova linha ao arquivo CSV
-        with open(self.csv_path_action, mode='a', newline='') as arquivo_csv:
-            escritor_csv = csv.writer(arquivo_csv)
-            escritor_csv.writerow([episode, agent_id, yard_value])
+    # def salvar_dados_csv_action(self, episode, agent_id, yard_value):
+    #     # Adiciona uma nova linha ao arquivo CSV
+    #     with open(self.csv_path_action, mode='a', newline='') as arquivo_csv:
+    #         escritor_csv = csv.writer(arquivo_csv)
+    #         escritor_csv.writerow([episode, agent_id, yard_value])
     
-    def salvar_dados_csv_reject(self, episode, agent_id, yard_value):
-        # Adiciona uma nova linha ao arquivo CSV
-        with open(self.csv_path_reject, mode='a', newline='') as arquivo_csv:
-            escritor_csv = csv.writer(arquivo_csv)
-            escritor_csv.writerow([episode, agent_id, yard_value])
+    # def salvar_dados_csv_reject(self, episode, agent_id, yard_value):
+    #     # Adiciona uma nova linha ao arquivo CSV
+    #     with open(self.csv_path_reject, mode='a', newline='') as arquivo_csv:
+    #         escritor_csv = csv.writer(arquivo_csv)
+    #         escritor_csv.writerow([episode, agent_id, yard_value])
     
-    def salvar_dados_csv_reject_w_wast(self, episode, agent_id, yard_value):
-        # Adiciona uma nova linha ao arquivo CSV
-        with open(self.csv_path_rejectwwast, mode='a', newline='') as arquivo_csv:
-            escritor_csv = csv.writer(arquivo_csv)
-            escritor_csv.writerow([episode, agent_id, yard_value])
+    # def salvar_dados_csv_reject_w_wast(self, episode, agent_id, yard_value):
+    #     # Adiciona uma nova linha ao arquivo CSV
+    #     with open(self.csv_path_rejectwwast, mode='a', newline='') as arquivo_csv:
+    #         escritor_csv = csv.writer(arquivo_csv)
+    #         escritor_csv.writerow([episode, agent_id, yard_value])
     
-    def salvar_dados_csv_reject_all(self, episode, yard_value):
-        # Adiciona uma nova linha ao arquivo CSV
-        with open(self.csv_path_rejectall, mode='a', newline='') as arquivo_csv:
-            escritor_csv = csv.writer(arquivo_csv)
-            escritor_csv.writerow([episode, yard_value])
+    # def salvar_dados_csv_reject_all(self, episode, yard_value):
+    #     # Adiciona uma nova linha ao arquivo CSV
+    #     with open(self.csv_path_rejectall, mode='a', newline='') as arquivo_csv:
+    #         escritor_csv = csv.writer(arquivo_csv)
+    #         escritor_csv.writerow([episode, yard_value])
 
-    def salvar_dados_csv_acept(self, episode,agent_id, yard_value):
-        # Adiciona uma nova linha ao arquivo CSV
-        with open(self.csv_path_rejectall, mode='a', newline='') as arquivo_csv:
-            escritor_csv = csv.writer(arquivo_csv)
-            escritor_csv.writerow([episode,agent_id, yard_value])
+    # def salvar_dados_csv_acept(self, episode,agent_id, yard_value):
+    #     # Adiciona uma nova linha ao arquivo CSV
+    #     with open(self.csv_path_rejectall, mode='a', newline='') as arquivo_csv:
+    #         escritor_csv = csv.writer(arquivo_csv)
+    #         escritor_csv.writerow([episode,agent_id, yard_value])
         
     def on_episode_start(self, *, worker: RolloutWorker, base_env, policies, episode, env_index, **kwargs) -> None:
         self.yard_hist = {}
@@ -122,6 +122,13 @@ class MyCallbacks(DefaultCallbacks):
         self.total_match = {}
         self.match_reject = {}
         self.penalty = {}
+        self.penaltyAll = 0
+        self.wastAll = 0
+        self.matchRejectYardAll = 0
+        self.produced_yard = {}
+        self.produced_yard_All = 0
+        self.prouced_wast = {}
+        self.prouced_wast_All = 0
 
     def on_episode_step(self, *, worker: RolloutWorker, base_env, policies=None, episode, env_index=None, **kwargs):
         self.step+=1
@@ -133,6 +140,11 @@ class MyCallbacks(DefaultCallbacks):
             reject_value = agent_info.get("reject")
             rejectw_value = agent_info.get("reject_w_west")
             acept_value = agent_info.get("acept_reject")
+            produced_yard_value = agent_info.get("yard_reject")
+            produced_wast_value = agent_info.get("produced_wast")
+
+            self.produced_yard[agent_id] = produced_yard_value
+            self.prouced_wast[agent_id] = produced_wast_value
 
             self.reject[agent_id] = reject_value
             self.reject_w[agent_id] = rejectw_value
@@ -151,14 +163,17 @@ class MyCallbacks(DefaultCallbacks):
             episode.custom_metrics[f"Yard agent {agent_id}"] = yard_value
             episode.custom_metrics[f"Action agent {agent_id}"] = action_value
             episode.custom_metrics[f"Acept_reject agent {agent_id}"] = acept_value
+            episode.custom_metrics[f"Penalty Agent {agent_id}"] = self.penalty[agent_id]
+
+            self.penaltyAll += self.penalty[agent_id]
 
             # Verifica se o valor de "yard" está presente
-            if yard_value is not None:
-                # Salva os dados em CSV
-                self.salvar_dados_csv_yard(self.step, agent_id, yard_value)
+            # if yard_value is not None:
+            #     # Salva os dados em CSV
+            #     self.salvar_dados_csv_yard(self.step, agent_id, yard_value)
             
-            if action_value is not None:
-                self.salvar_dados_csv_action(self.step, agent_id, action_value)
+            # if action_value is not None:
+            #     self.salvar_dados_csv_action(self.step, agent_id, action_value)
         
             self.reject_all = agent_info.get("reject_all")
     
@@ -171,16 +186,24 @@ class MyCallbacks(DefaultCallbacks):
             episode.custom_metrics[f"Acept_Yard_agent {agent_id}"] = self.acept_yard[agent_id]
             episode.custom_metrics[f"Total_Match_agent {agent_id}"] = self.total_match[agent_id]
             episode.custom_metrics[f"Match_Reject_agent {agent_id}"] = self.match_reject[agent_id]
-            episode.custom_metrics[f"Penalty_agent {agent_id}"] = self.penalty[agent_id]
+
+            self.wastAll += self.reject_w[agent_id]
 
             self.numepisode += 1
             self.sum_acept += self.acept[agent_id]
             self.sum_reject += self.reject[agent_id]
 
-            self.salvar_dados_csv_reject(self.numepisode, agent_id, self.reject[agent_id])
-            self.salvar_dados_csv_reject_w_wast(self.numepisode, agent_id, self.reject_w[agent_id])
-            self.salvar_dados_csv_acept(self.numepisode, agent_id, self.acept[agent_id])
+            self.produced_yard_All += self.produced_yard[agent_id]
+            self.prouced_wast_All += self.prouced_wast[agent_id]
 
-        self.salvar_dados_csv_reject_all(self.numepisode, self.reject_all)
+            # self.salvar_dados_csv_reject(self.numepisode, agent_id, self.reject[agent_id])
+            # self.salvar_dados_csv_reject_w_wast(self.numepisode, agent_id, self.reject_w[agent_id])
+            # self.salvar_dados_csv_acept(self.numepisode, agent_id, self.acept[agent_id])
+
+        # self.salvar_dados_csv_reject_all(self.numepisode, self.reject_all)
         episode.custom_metrics[f"Sum_Acept"] = self.sum_acept
         episode.custom_metrics[f"Sum_Reject"] = self.sum_reject
+        episode.custom_metrics[f"Penalty All"] = self.penaltyAll
+        episode.custom_metrics[f"Reject_w_wast_All"] = self.wastAll
+        episode.custom_metrics[f"Produced_Yard_All"] = self.produced_yard_All
+        episode.custom_metrics[f"Produced_Wast_All"] = self.prouced_wast_All

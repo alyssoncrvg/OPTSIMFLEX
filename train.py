@@ -13,18 +13,19 @@ objetivo = {
         1 : 1,
         2 : 2,
         3 : 0,
-        4 : 1,
-        5 : 2
+        # 4 : 1,
+        # 5 : 2
     }
 
-policies = ["Lucro", "Variabilidade", "Sustentabilidade"]
+# policies = ["Lucro", "Variabilidade", "Sustentabilidade"]
+policies = ["All"]
 
 def env_creator(args):
     return ParallelPettingZooEnv(make_env(-1, len(objetivo), objetivo))
 
 def policy_mapping_fn(agent_id, episode, worker, **kwargs):
     policie = objetivo[int(agent_id)]
-    policie = policies[policie]
+    policie = policies[0]
     return policie
 
 if __name__ == "__main__":
@@ -53,7 +54,7 @@ if __name__ == "__main__":
             checkpoint_config=air.CheckpointConfig(
                 checkpoint_frequency=10,
             ),
-            callbacks=[WandbLoggerCallback(project="Total Match", group="3")]
+            callbacks=[WandbLoggerCallback(project="resultados finais IC 2", group="6")]
         ),
         param_space=config,
     ).fit()
