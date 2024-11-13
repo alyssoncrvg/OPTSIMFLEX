@@ -1,3 +1,4 @@
+from datetime import datetime
 from Ambiente_SOMN.Demand import Demand
 from Ambiente_SOMN.Yard import Yard
 from Ambiente_SOMN.Statistcs import Statistcs
@@ -714,10 +715,23 @@ class Somn(ParallelEnv):
     
     def adicionar_dados(self, step, agente, lucro, variabilidade, sustentabilidade, erroEls, erro_anteriorEls,
                         erroEsv, erro_anteriorEsv, erroEvl, erro_anteriorEvl, saidaEvl, saidaEls, saidaEsv, fila):
-        with open("filas.csv", "a", newline="") as file:
+         # Gera um nome único para o arquivo com base na data e hora
+        if not hasattr(self, 'csv_filename'):
+            self.csv_filename = f"plots/filas_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+
+            # Escrever o cabeçalho (títulos das colunas) no arquivo
+            with open(self.csv_filename, "w", newline="") as file:
+                writer = csv.writer(file)
+                writer.writerow(["step", "agente", "lucro", "variabilidade", "sustentabilidade", 
+                                "erroEls", "erro_anteriorEls", "erroEsv", "erro_anteriorEsv", 
+                                "erroEvl", "erro_anteriorEvl", "saidaEvl", "saidaEls", 
+                                "saidaEsv", "fila"])
+        
+        # Adiciona a linha de dados ao arquivo
+        with open(self.csv_filename, "a", newline="") as file:
             writer = csv.writer(file)
             writer.writerow([step, agente, lucro, variabilidade, sustentabilidade, erroEls, erro_anteriorEls,
-                        erroEsv, erro_anteriorEsv, erroEvl, erro_anteriorEvl, saidaEvl, saidaEls, saidaEsv, fila])
+                            erroEsv, erro_anteriorEsv, erroEvl, erro_anteriorEvl, saidaEvl, saidaEls, saidaEsv, fila])
     
     def balance(self, agent, lucro, sustentabilidade, variabilidade) -> int:
         """
@@ -737,23 +751,23 @@ class Somn(ParallelEnv):
         
         if(lucro != 0 and sustentabilidade != 0 and variabilidade != 0):
             erro_atualEls = (lucro - sustentabilidade)/ sustentabilidade
-            erro_atualEsv = (sustentabilidade - variabilidade)/ variabilidade
             erro_atualEvl = (variabilidade - lucro)/ lucro
+            erro_atualEsv = (sustentabilidade - variabilidade)/ variabilidade
             
-            derivEvl = (erro_atualEvl - self.erro_anteriorEvl)
             derivEls = (erro_atualEls - self.erro_anteriorEls)
+            derivEvl = (erro_atualEvl - self.erro_anteriorEvl)
             derivEsv = (erro_atualEsv - self.erro_anteriorEsv)
             
-            saidaEvl = controle(erro_atualEvl, derivEvl, SetErro, SetDeri, SetAcao)
             saidaEls = controle(erro_atualEls, derivEls, SetErro, SetDeri, SetAcao)
+            saidaEvl = controle(erro_atualEvl, derivEvl, SetErro, SetDeri, SetAcao)
             saidaEsv = controle(erro_atualEsv, derivEsv, SetErro, SetDeri, SetAcao)
             
-            saidas = [saidaEvl, saidaEls, saidaEsv]
+            saidas = [saidaEls, saidaEvl, saidaEsv]
             
             fila = saidas.index(max(saidas))
             
-            self.adicionar_dados(self.stepnum ,agent, lucro, variabilidade, sustentabilidade, erroEls, self.erro_anteriorEls,
-                        erroEsv, self.erro_anteriorEsv, erroEvl, self.erro_anteriorEvl, saidaEvl, saidaEls, saidaEsv, fila)
+            self.adicionar_dados(self.stepnum ,agent, lucro, variabilidade, sustentabilidade, erro_atualEls, self.erro_anteriorEls,
+                        erro_atualEsv, self.erro_anteriorEsv, erro_atualEvl, self.erro_anteriorEvl, saidaEvl, saidaEls, saidaEsv, fila)
             
             self.erro_anteriorEsv = erro_atualEsv
             self.erro_anteriorEls = erro_atualEls
