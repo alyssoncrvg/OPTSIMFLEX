@@ -17,7 +17,7 @@ def make_env(atraso: int, numAgents : int, objetivo: dict[int,int]):
                 MAXEU = 5, 
                 atraso=atraso,
                 numAgents=numAgents,
-                objetivo=objetivo
+                # objetivo=objetivo
             )
     
     return env

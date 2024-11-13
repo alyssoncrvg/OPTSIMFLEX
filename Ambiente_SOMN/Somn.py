@@ -16,6 +16,8 @@ import copy
 
 #############################################################
 from pettingzoo import ParallelEnv
+
+from Ambiente_SOMN.fuzzer_control import controle
 #############################################################
 
 # LOAD
@@ -39,6 +41,28 @@ OUT_TIME = False
 
 FINAL_STATES = [REJECTED_W_WASTE, REJECTED, STORED, DELIVERED]
 
+ENG = -0.10
+ENP = -0.05
+EZE = 0.00
+EPP = 0.05
+EPG = 0.10
+
+DNG = -0.10
+DNP = -0.05
+DZE = 0.0
+DPP = 0.05
+DPG = 0.10
+
+UNG = -0.50
+UNP = -0.10
+UZE = 0.0
+UPP = 0.10
+UPG = 0.50
+
+# Conjuntos fuzzy
+SetErro = [ENG, ENP, EZE, EPP, EPG]
+SetDeri = [DNG, DNP, DZE, DPP, DPG]
+SetAcao = [UNG, UNP, UZE, UPP, UPG]
 
 class Somn(ParallelEnv):
 
@@ -66,14 +90,14 @@ class Somn(ParallelEnv):
         #seed: int,
         atraso: int,
         numAgents: int, #Numero de agentes que vão agir no espaço
-        objetivo: dict[str, int]
+        # objetivo: dict[str, int]
     ):
         super(Somn).__init__()
 
         
         Somn.obj_list = ['pr', 'va', 'su']
         Somn.priorq = {agente: [heapdict() for _ in Somn.obj_list] for agente in range(numAgents)}
-        Somn.objetivo = objetivo
+        # Somn.objetivo = objetivo
         # Somn.instance = JobShop()
         # Somn.priorqsu = heapdict()
         # Somn.priorqva = heapdict()
@@ -117,6 +141,7 @@ class Somn(ParallelEnv):
         self.rw_su = 0.0
         self.variabilidade = []
         self.sustentabilidade = []
+        self.lucro = []
         self.F = []
         self.acoes = []
         self.atrasos_reais = []
@@ -167,6 +192,9 @@ class Somn(ParallelEnv):
         self.acept_reject = []
         self.produced_yard = []
         self.produced_wast = []
+        self.erro_anteriorEvl = 0
+        self.erro_anteriorEls = 0
+        self.erro_anteriorEsv = 0
 
         self.MT = []
 
@@ -351,6 +379,9 @@ class Somn(ParallelEnv):
     def get_sustentabilidade(self):
         su = self.sustentabilidade
         return su
+    
+    def safe_mean(self, values):
+        return np.mean(values) if values else 0
 
     # Normaliza o valor dentro do range passado como parametro
     def normaliza(self, x, min, max):
@@ -438,7 +469,7 @@ class Somn(ParallelEnv):
                         # fila de prioridade 2 = sustentabilidade
                         prio_sustentabilidade = 1 - self.DE[agent][i].SU
 
-                        objetivo_agente = Somn.objetivo[agent]
+                        # objetivo_agente = Somn.objetivo[agent]
 
                         prioridades_atualizadas = {
                             0: prio_lucro,
@@ -446,7 +477,9 @@ class Somn(ParallelEnv):
                             2: prio_sustentabilidade
                         }
 
-                        Somn.priorq[agent][objetivo_agente][i] = prioridades_atualizadas[objetivo_agente]
+                        Somn.priorq[agent][0][i] = prioridades_atualizadas[0]
+                        Somn.priorq[agent][1][i] = prioridades_atualizadas[1]
+                        Somn.priorq[agent][2][i] = prioridades_atualizadas[2]
 
                         # print ((1 - self.DE[agent][i].SU))
                         self.BA[agent] -= np.array(DF)  # ATUALIZA O SALDO
@@ -471,7 +504,6 @@ class Somn(ParallelEnv):
                     prio_lucro = 1/(demand.AM * demand.PR)
                     prio_variabilidade = 1 - demand.VA
                     prio_sustentabilidade = 1 - demand.SU 
-                    objetivo_agente = Somn.objetivo[agent]
 
                     prioridades_atualizadas = {
                         0: prio_lucro,
@@ -480,8 +512,12 @@ class Somn(ParallelEnv):
                     }
 
                     pos_final = demand.posDemand
-                    Somn.priorq[agent][objetivo_agente][pos_final] = prioridades_atualizadas[objetivo_agente]
+                    # Somn.priorq[agent][objetivo_agente][pos_final] = prioridades_atualizadas[objetivo_agente]
 
+                    Somn.priorq[agent][0][pos_final] = prioridades_atualizadas[0]
+                    Somn.priorq[agent][1][pos_final] = prioridades_atualizadas[1]
+                    Somn.priorq[agent][2][pos_final] = prioridades_atualizadas[2]
+                    
                     # print ((1 - self.DE[agent][i].SU))
                     self.BA[agent] -= np.array(DF)  # ATUALIZA O SALDO
                     self.OU[agent] += np.array(DF)  # ATUALIZA A SAÍDA
@@ -531,24 +567,23 @@ class Somn(ParallelEnv):
                 covered = True
         return covered
     
-    def plan(self, t: int, action, agent) -> int:
+    def plan(self, t: int, action, agent, fila: int) -> int: #precisa da entrada de qual fila vai ser utilizada
         """
         Avalia se a Demanda, de acordo com a ordem de prioridade, vai ser produzida ou rejeitada.\n
         Retorna o valor da posição no vetor de demandas a demanda que foi analizada
         """
 
-        if len(Somn.priorq[agent][Somn.objetivo[agent]]) > 0:
+        if len(Somn.priorq[agent][fila]) > 0:
             # objetivo {0: price, 1: variabilidade, 2: sustentabilidade}
-            obj = Somn.priorq[agent][Somn.objetivo[agent]].popitem()
-            i = obj[0]
+            obj = Somn.priorq[agent][fila].popitem()
+            i = obj[0] #Index da demanda no vetor de demandas
             if i >= 0:
                 if self.DE[agent][i].ST == 1:  ## DE[I].ST VAI SER SEMPRE 1 PORQUE VEM DA FILAP
                     
-                    # COPY JOB TO JOBSHOP SCHEDULING
-                    # for j in range(self.M):
-                    #     if self.DE[agent][i].FT[j]!= 0:
-                    #         Somn.instance.InsertJobs(i, j, self.DE[agent][i].FT[j])
-                    #         flag = 1
+                    for j, filas in enumerate(Somn.priorq[agent]):
+                        if j != fila:  # Ignorar a fila da qual já removemos
+                            if i in filas:
+                                filas.pop(i)  # Remove a demanda da fila correspondente
 
                     # salva o valor do patio depois da acao
                     if self.Y ==0:
@@ -576,6 +611,7 @@ class Somn(ParallelEnv):
                         self.atrasos_reais.append(self.DE[agent][i].atraso_real)
                         self.variabilidade.append(self.DE[agent][i].VA)
                         self.sustentabilidade.append(self.DE[agent][i].SU)
+                        self.lucro.append((self.DE[agent][i].AM * self.DE[agent][i].PR) / 200)
                         self.F.append(self.DE[agent][i].F)
                     else:
                         self.DE[agent][i].ST = 2  ## rejected status
@@ -605,6 +641,7 @@ class Somn(ParallelEnv):
             - Escolhe o agente com a menor fila de prioridade, assim não inflando apenas um agente com essas demandas rejeitadas
             - Verifica se o agente tem um espaço de demanda livre para que ela seja acolhida
             - Se as opções assima não forem satisfeitas retorna o valor de -1 indicando que não tem agente presente para ficar com essa demanda
+            - Verificar se está disponível em um pátio de uma outra unidade
         """
         agentes = agents
         obj = []
@@ -652,10 +689,8 @@ class Somn(ParallelEnv):
         demand.ST = -1
         alocado = False
         agents = demand.rejects
-        # self.DE[agent].remove(demand)
         if len(demand.rejects) < self.num_agents:
             possibles = [i for i in range(self.num_agents) if i not in agents]
-            # novoAgente = random.choice(possibles)
             novoAgente = self.destine(possibles, demand)
 
             if novoAgente != -1:
@@ -674,8 +709,36 @@ class Somn(ParallelEnv):
                         covered = self.order_receive_and_match(novoAgente, demand)
         else:
             self.demands_rejects_all += 1
-            self.aux.remove(demand) #ALTERAÇÃO VÁLIDA APENAS PARA OS DOIS ÚLTIMOS TREINAMENTOS DE 6 AGENTES COM COMPARAÇÃO, PEGAR O GRÁFICO DA MÉDIA DESSES DOIS AGENTES
+            self.aux.remove(demand)
+    
+    def balance(self, lucro, sustentabilidade, variabilidade) -> int:
+        """
+        Equilibrar o ambiente através do controlador escolhendo qual fila de prioridade será utilizada para avaliar a demanda\n
+        return -> index da fila de prioridade
+        """
+        if(lucro != 0 and sustentabilidade != 0 and variabilidade != 0):
+            erro_atualEls = (lucro - sustentabilidade)/ sustentabilidade
+            erro_atualEsv = (sustentabilidade - variabilidade)/ variabilidade
+            erro_atualEvl = (variabilidade - lucro)/ lucro
+            
+            derivEvl = (erro_atualEvl - self.erro_anteriorEvl)
+            derivEls = (erro_atualEls - self.erro_anteriorEls)
+            derivEsv = (erro_atualEsv - self.erro_anteriorEsv)
+            
+            saidaEvl = controle(erro_atualEvl, derivEvl, SetErro, SetDeri, SetAcao)
+            saidaEls = controle(erro_atualEls, derivEls, SetErro, SetDeri, SetAcao)
+            saidaEsv = controle(erro_atualEsv, derivEsv, SetErro, SetDeri, SetAcao)
+            
+            saidas = [saidaEvl, saidaEls, saidaEsv]
+            
+            self.erro_anteriorEsv = erro_atualEsv
+            self.erro_anteriorEls = erro_atualEls
+            self.erro_anteriorEvl = erro_atualEvl
+            
+            return saidas.index(max(saidas))
         
+        saidas = [lucro, sustentabilidade, variabilidade]
+        return saidas.index(min(saidas))
 
     def produce(self, t: int, i: int, agent):
         
@@ -852,8 +915,6 @@ class Somn(ParallelEnv):
             self.rw_va = 0.0
             self.rw_su = 0.0
 
-            self.variabilidade = []
-            self.sustentabilidade = []
             self.F = []
 
             self.acoes = []
@@ -866,12 +927,15 @@ class Somn(ParallelEnv):
 
             # se a fila de prioridade estiver vazia 
             # entra em order_receive_and_match() senao pula para plan()
-            if len(Somn.priorq[agent][Somn.objetivo[agent]]) == 0:
+            
+            fila = self.balance(self.safe_mean(self.lucro), self.safe_mean(self.sustentabilidade), self.safe_mean(self.variabilidade)) #FALTA AS ENTRADAS
+            
+            if len(Somn.priorq[agent][fila]) == 0: #encher fila de prioridade, remodelar
                 covered = False
                 while not covered:
                     covered = self.order_receive_and_match(agent) 
                     
-            self.plan(Somn.time[agent], action, agent)
+            self.plan(Somn.time[agent], action, agent, fila)
             for i in range(len(self.DE[agent])):
                 self.produce(Somn.time[agent], i, agent)
                 self.dispatch(i, agent)
@@ -879,18 +943,18 @@ class Somn(ParallelEnv):
                 self.reject(i, agent)
                 self.reject_w_waste(i, agent)  
 
-            if Somn.objetivo[agent] == 0: # lucro
+            if fila == 0: # lucro
                 self.totReward = self.rw_pr
                 self.reward[f"{agent}"] = self.totReward - self.totPenalty
-                self.total_Penalty[agent] += self.totPenalty
-            if Somn.objetivo[agent] == 1: # variabilidade
+                self.total_Penalty[agent] = self.totPenalty
+            if fila == 1: # variabilidade
                 self.totReward = self.rw_va
                 self.reward[f"{agent}"] = self.totReward - self.totPenalty2
-                self.total_Penalty[agent] += self.totPenalty2
-            if Somn.objetivo[agent] == 2: # sustentabilidade
+                self.total_Penalty[agent] = self.totPenalty2
+            if fila == 2: # sustentabilidade
                 self.totReward = self.rw_su
                 self.reward[f"{agent}"] = self.totReward - self.totPenalty2
-                self.total_Penalty[agent] += self.totPenalty2
+                self.total_Penalty[agent] = self.totPenalty2
             
             # desconta as penalidades
             self.rw_pr -= self.totPenalty
@@ -938,6 +1002,7 @@ class Somn(ParallelEnv):
                     "rw_pr": self.rw_pr,
                     "rw_va": self.rw_va,
                     "rw_su": self.rw_su,
+                    "LU": self.lucro,
                     "VA": self.variabilidade,
                     "SU": self.sustentabilidade,
                     "F": self.F,
@@ -983,8 +1048,8 @@ class Somn(ParallelEnv):
             print("\n\n\nVAZIOOOOOOOOOOOOOOOOOO\n\n\n")
         
         self.aux = self.rejecteds
-        for i in self.rejecteds:
-            self.rejected(i)
+        # for i in self.rejecteds:
+        #     self.rejected(i)
 
         self.rejecteds = self.aux
 
@@ -1030,6 +1095,10 @@ class Somn(ParallelEnv):
         self.acao_on_state_plan = []
         self.carga_on_state_plan = []
         self.patio_on_state_plan = []
+        
+        self.variabilidade = []
+        self.sustentabilidade = []
+        self.lucro = []
 
         self.YA = []
 

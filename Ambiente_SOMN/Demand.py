@@ -48,7 +48,6 @@ class Demand:
 
         cont +=1
         self.CU = cont
-    #   self.PR = random.randrange(3,Demand.MAXPR)  below -----------------
         self.AM = random.randrange(1,Demand.MAXAM)
         self.PE = random.randint(1,Demand.MAXPE)
         self.ST = int(0)                  ###received0, ready1, rejected2, produced3, stored4 and delivered5
@@ -58,40 +57,6 @@ class Demand:
         #self.FT = np.random.randint(0,Demand.MAXFT,self.M)
         self.F, self.FT, self.mask_FT = self.gera_features()
 
-        # # enquanto der tudo zero, escolhe randomicamente novamente
-        # # self.FT = array([0, 0, 0, 0, 0]) #np.any(self.FT) == False
-        # while not np.any(self.FT):
-        #     self.FT = np.random.randint(0,Demand.MAXFT,self.M)
-
-        # # mask_FT eh um vetor de zeros e uns indicando quais features estao ativas (maquinas usadas)
-        # # Exemplo: self.mask_FT = array([1, 1, 0, 1, 1])
-        # self.mask_FT = self.FT.copy()
-        # self.mask_FT[self.mask_FT > 0] = 1
-
-        # # contar quantas Features estao sendo usadas (total de maquinas usadas)
-        # self.F = self.mask_FT.sum()
-
-        # # jogar a moeda pra decidir se mudar ou nao quando F == M (usando todas as maquinas)
-        # # o objetivo disso é equilibrar a base de dados
-        # # porque a probabilidade de (F==M) é muito alta.
-        # joga_moeda = bool(random.randint(0,1))
-        # if self.F == self.M and joga_moeda:
-
-        #     # mask_clear multiplica self.FT para apagar alguns valores
-        #     mask_clear = np.random.randint(2, size=self.M)
-        #     # enquanto der tudo zero ou tudo um, escolhe randomicamente novamente
-        #     while mask_clear.sum() == self.M or mask_clear.sum() == 0:
-        #         mask_clear = np.random.randint(2, size=self.M)
-            
-        #     self.FT = self.FT * mask_clear
-            
-        #     self.mask_FT = self.FT.copy()
-        #     self.mask_FT[self.mask_FT > 0] = 1
-
-        #     # contar quantas Features estao sendo usadas (total de maquinas usadas)
-        #     self.F = self.mask_FT.sum()
-
-        # self.LT = int(self.F/2) + 2                      ###  --- 1.0*self.fun_tau() * self.F
         self.LT = self.fun_tau()
         self.real_LT = poisson.rvs(mu=(self.LT + load))
         self.TP = t + self.real_LT
@@ -103,18 +68,25 @@ class Demand:
         self.DI = t
         self.DO = t + self.LT + random.randint(0,Demand.MAXDO)
 
-        self.CO = 0.0
-        for j in range(Demand.M):
-            self.CO += self.FT[j] * Demand.EU[j]
-        # sustentabilidade tem um custo maior    
-        self.CO = self.CO * float(self.M/self.F)
-        #self.CO = self.AM * self.CO  -- custo sem o amount
-
-        self.PR = Demand.MAXPR*self.CO  ### LUCRO EH 2X CUSTO  self.PR = Demand.MAXPE  (by fred)
-
         self.SP = self.fun_gamma() ####* 'cpu'.Y   #SPACE CONSUMPTION FACTOR
         self.VA = self.fun_upsilon() ### [0low 1up]
         self.SU = 1- self.fun_sigma() ### [0low 1up]
+        
+        self.CO = 0.0
+        for j in range(Demand.M):
+            if self.FT[j] != 0:
+                # self.CO += ((self.MAXFT - 1) / self.FT[j]) * Demand.EU[j] #/ self.MAXFT * self.MAXEU
+                self.CO += self.FT[j] * Demand.EU[j]
+            else:
+                self.CO += 0
+
+            # self.CO /= self.F
+        # sustentabilidade tem um custo maior    
+        # self.CO = self.CO * float(self.M/self.F)
+        self.CO = self.AM * self.CO #/ self.MAXAM - 1  # custo com o amount
+        
+        self.PR = self.fun_theta(self.SU + self.VA)  ### LUCRO EH 2X CUSTO  self.PR = Demand.MAXPE  (by fred)
+
         
 
 
@@ -122,9 +94,6 @@ class Demand:
         x = (self.AM*self.F)/((Demand.MAXAM -1) * self.M)
         return x
 
-    # def fun_tau(self) -> float:
-    #     x = (self.AM*self.F)/((Demand.MAXAM-1) * self.M)
-    #     return x
     def fun_tau(self) -> float:
         x = self.AM * self.FT
         return x.sum()
@@ -134,8 +103,35 @@ class Demand:
         return x
 
     def fun_sigma(self) -> float:
-        x = self.F/self.M
+        x = (self.F * (self.MAXFT - 1) - sum(self.FT)) / (self.F * (self.MAXFT - 1) - self.F)
+
         return x
+    
+    def fun_theta(self, fator_lucro):
+        min_original = 1/self.M
+        max_original = 2
+        novo_min = 1
+        novo_max = 2
+
+        x = self.CO * self.converter_intervalo(fator_lucro, min_original, max_original, novo_min, novo_max)# * self.MAXPR
+        return x
+    
+    def converter_intervalo(self, valor_original, min_original, max_original, novo_min, novo_max):
+        """
+        Converte um valor de um intervalo original para um novo intervalo.
+
+        Args:
+        valor_original (float): O valor no intervalo original.
+        min_original (float): O mínimo do intervalo original.
+        max_original (float): O máximo do intervalo original.
+        novo_min (float): O mínimo do novo intervalo.
+        novo_max (float): O máximo do novo intervalo.
+
+        Returns:
+        float: O valor convertido no novo intervalo.
+        """
+        valor_convertido = novo_min + ((valor_original - min_original) / (max_original - min_original)) * (novo_max - novo_min)
+        return valor_convertido
     
     def gera_features(self) -> np.ndarray:
 
@@ -149,15 +145,5 @@ class Demand:
         posicoes = sorted(random.sample(range(0, Demand.M), F))
         mask = np.zeros(Demand.M).astype(np.int32)
         mask[posicoes] = 1
+        
         return F, np.random.randint(1,Demand.MAXFT,Demand.M).astype(np.int32) * mask, mask
-
-
-#  def fun_beta(self, IN, OU) -> float:
-#    x=0
-#    for i in range(self.M):
-#      if IN[i]==OU[i]:
-#        x+=1
-#    x = x/self.M
-#    return x
-
-#  def calculate_statics(self):

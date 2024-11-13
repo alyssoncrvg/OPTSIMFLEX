@@ -1,25 +1,23 @@
-import math
-
 # Definição dos conjuntos fuzzy e limites
-MSS = 0.010
+MSS = 0.010 # TAXAS DE MUTAÇÃO --> Intervalos para valores possíveis de mutação
 MMS = 0.025
 MMM = 0.040
 MML = 0.055
 MLL = 0.070
 
-HSS = 0.10
+HSS = 0.10 # LIMITES DE VALORES DE HERANÇA --> 
 HMS = 0.25
 HMM = 0.40
 HML = 0.55
 HLL = 0.70
 
-ESS = 0.0
+ESS = 0.0 # LIMITES DE EXIGÊNCIA
 EMS = 0.15
 EMM = 0.30
 EML = 0.45
 ELL = 0.60
 
-TSS = 0.005
+TSS = 0.005# LIMITES DE TOLERÂNCIA
 TMS = 0.010
 TMM = 0.050
 TML = 0.100
@@ -56,10 +54,8 @@ KuT = 0.15
 KuM = 0.1
 KuH = 0.1
 KuE = 0.1
-RefDiv = 1.0
-RefPop = 100
-
-# Funções auxiliares
+RefDiv = 1.0 #DIVERS
+RefPop = 100 #TOTREC
 
 def triangulo(x, centro, limite):
     return 1 - abs(x - centro) / abs(limite - centro)
@@ -69,7 +65,7 @@ def corte(var, ini, fim):
 
 # Controlador fuzzy
 def controle(etotal, deriv, e, ld, lde):
-    # Base de regras fuzzy
+    # Base de regras fuzzy 4 é um extremo e 0 o outro
     tabela = [
         [4, 4, 3, 2, 2],
         [4, 3, 3, 2, 2],
@@ -159,3 +155,101 @@ def controle(etotal, deriv, e, ld, lde):
         den += miu[t]
 
     return num / den
+
+
+# # Conjuntos de valores normalizados
+# cenarios = [
+#     {"L": 0.3, "S": 0.5, "V": 1.0},
+#     {"L": 0.7, "S": 0.9, "V": 0.3},
+#     {"L": 0.6, "S": 0.2, "V": 0.4}
+# ]
+
+# # Erros anteriores diferentes para cada discrepância
+# erro_anteriorEvl = -0.30  # Erro anterior para Evl
+# erro_anteriorEls = 0.85   # Erro anterior para Els
+# erro_anteriorEsv = -0.40  # Erro anterior para Esv
+
+# # Diferença de tempo (1 segundo)
+# delta_t = 1
+
+# # Executar o teste para cada conjunto de valores
+# for i, cenario in enumerate(cenarios, 1):
+#     L = cenario["L"]
+#     S = cenario["S"]
+#     V = cenario["V"]
+
+#     # Cálculo dos erros usando as três equações
+#     erro_atualEvl = (V - L) / L  # Evl = (V - L) / L
+#     erro_atualEls = (L - S) / S  # Els = (L - S) / S
+#     erro_atualEsv = (S - V) / V  # Esv = (S - V) / V
+
+#     # Cálculo das derivadas com erros anteriores distintos
+#     derivEvl = (erro_atualEvl - erro_anteriorEvl) / delta_t
+#     derivEls = (erro_atualEls - erro_anteriorEls) / delta_t
+#     derivEsv = (erro_atualEsv - erro_anteriorEsv) / delta_t
+
+#     # Executar o controlador com o erro calculado e a derivada
+#     saidaEvl = controle(erro_atualEvl, derivEvl, SetErro, SetDeri, SetAcao)
+#     saidaEls = controle(erro_atualEls, derivEls, SetErro, SetDeri, SetAcao)
+#     saidaEsv = controle(erro_atualEsv, derivEsv, SetErro, SetDeri, SetAcao)
+
+#     # Exibir o resultado para cada cenário
+#     print(f"\nCenário {i} - L = {L}, S = {S}, V = {V}")
+#     print(f"Erros: Evl = {erro_atualEvl:.4f}, Els = {erro_atualEls:.4f}, Esv = {erro_atualEsv:.4f}")
+#     print(f"Erros Anteriores: Evl = {erro_anteriorEvl}, Els = {erro_anteriorEls}, Esv = {erro_anteriorEsv}")
+#     print(f"Derivadas: Evl = {derivEvl:.4f}, Els = {derivEls:.4f}, Esv = {derivEsv:.4f}")
+#     print(f"Saídas: Evl = {saidaEvl:.4f}, Els = {saidaEls:.4f}, Esv = {saidaEsv:.4f}")
+
+
+# inputs = {
+#     "L": [0.1,0.1,0.1,0.1,0.1,0.1,0.4,0.4,0.4,0.4,0.4,0.4,0.4,0.4,0.4,0.4,0.8,0.8,0.8,0.8,0.8,0.8,0.8,0.8,0.8,0.8,0.8,0.8,0.8,0.8],
+#     "S": [0.5,0.9,0.9,0.9,0.9,0.9,0.4,0.4,0.4,0.4,0.4,0.8,0.8,0.8,0.8,0.8,0.1,0.1,0.1,0.1,0.1,0.5,0.5,0.5,0.5,0.5,0.9,0.9,0.9,0.9],
+#     "V": [0.9,0.2,0.4,0.6,0.8,1,0.2,0.4,0.6,0.8,1,0.3,0.5,0.7,0.9,1,0.1,0.3,0.5,0.7,0.9,0.1,0.3,0.5,0.7,0.9,0.2,0.4,0.6,0.8]
+# }
+
+# V = 0
+# L = 0
+# S = 0
+
+# erro_anteriorEvl = 0  
+# erro_anteriorEls = 0   
+# erro_anteriorEsv = 0  
+
+# for i in range(len(inputs["L"])):
+    
+#     erro_atualEls = (inputs["L"][i] - inputs["S"][i])/ inputs["S"][i]
+#     erro_atualEsv = (inputs["S"][i] - inputs["V"][i])/ inputs["V"][i]
+#     erro_atualEvl = (inputs["V"][i] - inputs["L"][i])/ inputs["L"][i]
+    
+#     derivEvl = (erro_atualEvl - erro_anteriorEvl)
+#     derivEls = (erro_atualEls - erro_anteriorEls)
+#     derivEsv = (erro_atualEsv - erro_anteriorEsv)
+    
+#     saidaEvl = controle(erro_atualEvl, derivEvl, SetErro, SetDeri, SetAcao)
+#     saidaEls = controle(erro_atualEls, derivEls, SetErro, SetDeri, SetAcao)
+#     saidaEsv = controle(erro_atualEsv, derivEsv, SetErro, SetDeri, SetAcao)
+    
+#     dl = inputs["L"][i]
+#     dv = inputs["V"][i]
+#     ds = inputs["S"][i]
+    
+#     V += dv
+#     L += dl
+#     S += ds
+    
+#     saidas = [L, V, S]
+
+#     indice_maximo = max(enumerate(saidas), key=lambda x: x[1])[0]
+
+    
+#     # Exibir o resultado para cada cenário
+#     print(f"\nCenário {i} - L = {dl}, S = {ds}, V = {dv}")
+#     print(f"Valores brutos: L = {L}, V = {V}, S = {S}")
+#     print(f"Erros: Evl = {erro_atualEvl:.4f}, Els = {erro_atualEls:.4f}, Esv = {erro_atualEsv:.4f}")
+#     print(f"Erros Anteriores: Evl = {erro_anteriorEvl}, Els = {erro_anteriorEls}, Esv = {erro_anteriorEsv}")
+#     print(f"Derivadas: Evl = {derivEvl:.4f}, Els = {derivEls:.4f}, Esv = {derivEsv:.4f}")
+#     print(f"Saídas: Els = {saidaEls:.4f}, Evl = {saidaEvl:.4f}, Esv = {saidaEsv:.4f}")
+#     print(f"Fila escolhida: {indice_maximo}")
+#     erro_anteriorEvl = erro_atualEvl
+#     erro_anteriorEls = erro_atualEls
+#     erro_anteriorEsv = erro_atualEsv

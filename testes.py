@@ -1,13 +1,33 @@
-inicio_cima_novo = 600
-fim_cima_novo = 2300
-inicio_baixo_novo = 300
-fim_baixo_novo = 1800
+from Ambiente_SOMN.Demand import Demand
 
-# Calculando os valores médios dos novos gráficos
-media_cima_novo = (inicio_cima_novo + fim_cima_novo) / 2
-media_baixo_novo = (inicio_baixo_novo + fim_baixo_novo) / 2
 
-# Calculando a porcentagem de quanto o gráfico de cima é maior que o de baixo
-diferenca_percentual_novo = ((media_cima_novo - media_baixo_novo) / media_baixo_novo) * 100
-print(media_cima_novo, media_baixo_novo, diferenca_percentual_novo)
+list = []
 
+Y=10,
+M=10
+N=10
+MAXDO=100
+MAXAM=2
+MAXPR=2
+MAXPE=10
+MAXFT=5
+MAXMT=3
+MAXTI=2
+MAXEU = 5 
+atraso=-1
+numAgents=3
+
+demand_list = [
+    Demand(M, N, MAXDO, MAXAM, MAXPR, MAXPE, MAXFT, MAXMT, MAXTI, MAXEU, 0, atraso)
+    for _ in range(1000000)  # ou a quantidade desejada de instâncias
+]
+
+# Atualize a lista chamando o método que inicializa os valores, caso necessário
+for demand in demand_list:
+    demand(0, 0, 0)  # Passa os argumentos adequados para chamar cada demanda e inicializar `PR`
+# Encontra o maior valor de PR na lista de demandas
+max_pr = max(demand.PR for demand in demand_list)
+min_pr = min(demand.PR for demand in demand_list)
+
+print("Maior valor de PR:", max_pr)
+print("menor valor: ", min_pr)
