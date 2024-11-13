@@ -8,6 +8,7 @@ from heapdict import heapdict
 
 # outras bibliotecas
 import os
+import csv
 import numpy as np
 import random
 import numpy as np
@@ -711,11 +712,18 @@ class Somn(ParallelEnv):
             self.demands_rejects_all += 1
             self.aux.remove(demand)
     
-    def balance(self, lucro, sustentabilidade, variabilidade) -> int:
+    def adicionar_dados(self, step, agente, lucro, variabilidade, sustentabilidade, fila):
+        with open("filas.csv", "a", newline="") as file:
+            writer = csv.writer(file)
+            writer.writerow([step, agente, lucro, variabilidade, sustentabilidade, fila])
+    
+    def balance(self, agent, lucro, sustentabilidade, variabilidade) -> int:
         """
         Equilibrar o ambiente através do controlador escolhendo qual fila de prioridade será utilizada para avaliar a demanda\n
         return -> index da fila de prioridade
         """
+        saidas = [lucro, sustentabilidade, variabilidade]
+        
         if(lucro != 0 and sustentabilidade != 0 and variabilidade != 0):
             erro_atualEls = (lucro - sustentabilidade)/ sustentabilidade
             erro_atualEsv = (sustentabilidade - variabilidade)/ variabilidade
@@ -735,10 +743,11 @@ class Somn(ParallelEnv):
             self.erro_anteriorEls = erro_atualEls
             self.erro_anteriorEvl = erro_atualEvl
             
-            return saidas.index(max(saidas))
+        fila = saidas.index(min(saidas))
         
-        saidas = [lucro, sustentabilidade, variabilidade]
-        return saidas.index(min(saidas))
+        self.adicionar_dados(self.stepnum ,agent, lucro, variabilidade, sustentabilidade, fila)
+        
+        return fila
 
     def produce(self, t: int, i: int, agent):
         
@@ -928,7 +937,7 @@ class Somn(ParallelEnv):
             # se a fila de prioridade estiver vazia 
             # entra em order_receive_and_match() senao pula para plan()
             
-            fila = self.balance(self.safe_mean(self.lucro), self.safe_mean(self.sustentabilidade), self.safe_mean(self.variabilidade)) #FALTA AS ENTRADAS
+            fila = self.balance(agent, self.safe_mean(self.lucro), self.safe_mean(self.sustentabilidade), self.safe_mean(self.variabilidade)) #FALTA AS ENTRADAS
             
             if len(Somn.priorq[agent][fila]) == 0: #encher fila de prioridade, remodelar
                 covered = False
