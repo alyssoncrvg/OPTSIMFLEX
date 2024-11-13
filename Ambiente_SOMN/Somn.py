@@ -712,16 +712,27 @@ class Somn(ParallelEnv):
             self.demands_rejects_all += 1
             self.aux.remove(demand)
     
-    def adicionar_dados(self, step, agente, lucro, variabilidade, sustentabilidade, fila):
+    def adicionar_dados(self, step, agente, lucro, variabilidade, sustentabilidade, erroEls, erro_anteriorEls,
+                        erroEsv, erro_anteriorEsv, erroEvl, erro_anteriorEvl, saidaEvl, saidaEls, saidaEsv, fila):
         with open("filas.csv", "a", newline="") as file:
             writer = csv.writer(file)
-            writer.writerow([step, agente, lucro, variabilidade, sustentabilidade, fila])
+            writer.writerow([step, agente, lucro, variabilidade, sustentabilidade, erroEls, erro_anteriorEls,
+                        erroEsv, erro_anteriorEsv, erroEvl, erro_anteriorEvl, saidaEvl, saidaEls, saidaEsv, fila])
     
     def balance(self, agent, lucro, sustentabilidade, variabilidade) -> int:
         """
         Equilibrar o ambiente através do controlador escolhendo qual fila de prioridade será utilizada para avaliar a demanda\n
         return -> index da fila de prioridade
         """
+        erroEls = 0
+        erroEsv = 0
+        erroEvl = 0
+        derivEvl = 0
+        derivEls = 0
+        derivEsv = 0
+        saidaEvl = 0
+        saidaEls = 0
+        saidaEsv = 0
         saidas = [lucro, sustentabilidade, variabilidade]
         
         if(lucro != 0 and sustentabilidade != 0 and variabilidade != 0):
@@ -739,13 +750,21 @@ class Somn(ParallelEnv):
             
             saidas = [saidaEvl, saidaEls, saidaEsv]
             
+            fila = saidas.index(max(saidas))
+            
+            self.adicionar_dados(self.stepnum ,agent, lucro, variabilidade, sustentabilidade, erroEls, self.erro_anteriorEls,
+                        erroEsv, self.erro_anteriorEsv, erroEvl, self.erro_anteriorEvl, saidaEvl, saidaEls, saidaEsv, fila)
+            
             self.erro_anteriorEsv = erro_atualEsv
             self.erro_anteriorEls = erro_atualEls
             self.erro_anteriorEvl = erro_atualEvl
             
+            return fila
+        
         fila = saidas.index(min(saidas))
         
-        self.adicionar_dados(self.stepnum ,agent, lucro, variabilidade, sustentabilidade, fila)
+        self.adicionar_dados(self.stepnum ,agent, lucro, variabilidade, sustentabilidade, erroEls, self.erro_anteriorEls,
+                        erroEsv, self.erro_anteriorEsv, erroEvl, self.erro_anteriorEvl, saidaEvl, saidaEls, saidaEsv, fila)
         
         return fila
 
