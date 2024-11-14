@@ -20,6 +20,7 @@ import copy
 from pettingzoo import ParallelEnv
 
 from Ambiente_SOMN.fuzzer_control import controle
+from Ambiente_SOMN.saveDatas import adicionar_dados_filas_de_prioridades, adicionar_dados_filas_escolhidas
 #############################################################
 
 # LOAD
@@ -197,6 +198,9 @@ class Somn(ParallelEnv):
         self.erro_anteriorEvl = 0
         self.erro_anteriorEls = 0
         self.erro_anteriorEsv = 0
+        self.erro_atualEls = 0
+        self.erro_atualEvl = 0
+        self.erro_atualEsv = 0
 
         self.MT = []
 
@@ -598,6 +602,12 @@ class Somn(ParallelEnv):
                     # salva a acao
                     self.DE[agent][i].action = action
                     self.acao_on_state_plan.append(action)
+                    
+                    adicionar_dados_filas_de_prioridades(self.stepnum, agent,
+                                                             self.DE[agent][i].AM * self.DE[agent][i].PR, (self.DE[agent][i].AM * self.DE[agent][i].PR) / 200,
+                                                             self.DE[agent][i].AM * self.DE[agent][i].PR * self.DE[agent][i].VA, self.DE[agent][i].VA,
+                                                             self.DE[agent][i].AM * self.DE[agent][i].PR * self.DE[agent][i].SU, self.DE[agent][i].SU,
+                                                             fila)
 
                     # executa a acao
                     if self.DE[agent][i].DO > (t + self.DE[agent][i].LT + action):
@@ -615,6 +625,10 @@ class Somn(ParallelEnv):
                         self.sustentabilidade.append(self.DE[agent][i].SU)
                         self.lucro.append((self.DE[agent][i].AM * self.DE[agent][i].PR) / 200)
                         self.F.append(self.DE[agent][i].F)
+                        
+                        self.erro_anteriorEsv = self.erro_atualEsv
+                        self.erro_anteriorEls = self.erro_atualEls
+                        self.erro_anteriorEvl = self.erro_atualEvl
                     else:
                         self.DE[agent][i].ST = 2  ## rejected status
                         self.OU[agent] -= self.DE[agent][i].FT  ### libera do buffer de produção
@@ -713,25 +727,7 @@ class Somn(ParallelEnv):
             self.demands_rejects_all += 1
             self.aux.remove(demand)
     
-    def adicionar_dados(self, step, agente, lucro, variabilidade, sustentabilidade, erroEls, erro_anteriorEls,
-                        erroEsv, erro_anteriorEsv, erroEvl, erro_anteriorEvl, saidaEvl, saidaEls, saidaEsv, fila):
-         # Gera um nome único para o arquivo com base na data e hora
-        if not hasattr(self, 'csv_filename'):
-            self.csv_filename = f"plots/filas_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
-
-            # Escrever o cabeçalho (títulos das colunas) no arquivo
-            with open(self.csv_filename, "w", newline="") as file:
-                writer = csv.writer(file)
-                writer.writerow(["step", "agente", "lucro", "variabilidade", "sustentabilidade", 
-                                "erroEls", "erro_anteriorEls", "erroEsv", "erro_anteriorEsv", 
-                                "erroEvl", "erro_anteriorEvl", "saidaEvl", "saidaEls", 
-                                "saidaEsv", "fila"])
-        
-        # Adiciona a linha de dados ao arquivo
-        with open(self.csv_filename, "a", newline="") as file:
-            writer = csv.writer(file)
-            writer.writerow([step, agente, lucro, variabilidade, sustentabilidade, erroEls, erro_anteriorEls,
-                            erroEsv, erro_anteriorEsv, erroEvl, erro_anteriorEvl, saidaEvl, saidaEls, saidaEsv, fila])
+    
     
     def balance(self, agent, lucro, sustentabilidade, variabilidade) -> int:
         """
@@ -747,37 +743,33 @@ class Somn(ParallelEnv):
         saidaEvl = 0
         saidaEls = 0
         saidaEsv = 0
-        saidas = [lucro, sustentabilidade, variabilidade]
+        saidas = [lucro, variabilidade, sustentabilidade ]
         
         if(lucro != 0 and sustentabilidade != 0 and variabilidade != 0):
-            erro_atualEls = (lucro - sustentabilidade)/ sustentabilidade
-            erro_atualEvl = (variabilidade - lucro)/ lucro
-            erro_atualEsv = (sustentabilidade - variabilidade)/ variabilidade
+            self.erro_atualEls = (lucro - sustentabilidade)/ sustentabilidade
+            self.erro_atualEvl = (variabilidade - lucro)/ lucro
+            self.erro_atualEsv = (sustentabilidade - variabilidade)/ variabilidade
             
-            derivEls = (erro_atualEls - self.erro_anteriorEls)
-            derivEvl = (erro_atualEvl - self.erro_anteriorEvl)
-            derivEsv = (erro_atualEsv - self.erro_anteriorEsv)
+            derivEls = (self.erro_atualEls - self.erro_anteriorEls)
+            derivEvl = (self.erro_atualEvl - self.erro_anteriorEvl)
+            derivEsv = (self.erro_atualEsv - self.erro_anteriorEsv)
             
-            saidaEls = controle(erro_atualEls, derivEls, SetErro, SetDeri, SetAcao)
-            saidaEvl = controle(erro_atualEvl, derivEvl, SetErro, SetDeri, SetAcao)
-            saidaEsv = controle(erro_atualEsv, derivEsv, SetErro, SetDeri, SetAcao)
+            saidaEls = controle(self.erro_atualEls, derivEls, SetErro, SetDeri, SetAcao)
+            saidaEvl = controle(self.erro_atualEvl, derivEvl, SetErro, SetDeri, SetAcao)
+            saidaEsv = controle(self.erro_atualEsv, derivEsv, SetErro, SetDeri, SetAcao)
             
             saidas = [saidaEls, saidaEvl, saidaEsv]
             
             fila = saidas.index(max(saidas))
             
-            self.adicionar_dados(self.stepnum ,agent, lucro, variabilidade, sustentabilidade, erro_atualEls, self.erro_anteriorEls,
-                        erro_atualEsv, self.erro_anteriorEsv, erro_atualEvl, self.erro_anteriorEvl, saidaEvl, saidaEls, saidaEsv, fila)
-            
-            self.erro_anteriorEsv = erro_atualEsv
-            self.erro_anteriorEls = erro_atualEls
-            self.erro_anteriorEvl = erro_atualEvl
+            adicionar_dados_filas_escolhidas(self.stepnum ,agent, lucro, variabilidade, sustentabilidade, self.erro_atualEls, self.erro_anteriorEls,
+                        self.erro_atualEsv, self.erro_anteriorEsv, self.erro_atualEvl, self.erro_anteriorEvl, saidaEvl, saidaEls, saidaEsv, fila)
             
             return fila
         
         fila = saidas.index(min(saidas))
         
-        self.adicionar_dados(self.stepnum ,agent, lucro, variabilidade, sustentabilidade, erroEls, self.erro_anteriorEls,
+        adicionar_dados_filas_escolhidas(self.stepnum ,agent, lucro, variabilidade, sustentabilidade, erroEls, self.erro_anteriorEls,
                         erroEsv, self.erro_anteriorEsv, erroEvl, self.erro_anteriorEvl, saidaEvl, saidaEls, saidaEsv, fila)
         
         return fila
@@ -1155,6 +1147,12 @@ class Somn(ParallelEnv):
         self.total_Penalty = []
         self.produced_yard = []
         self.produced_wast = []
+        self.erro_anteriorEvl = 0
+        self.erro_anteriorEls = 0
+        self.erro_anteriorEsv = 0
+        self.erro_atualEls = 0
+        self.erro_atualEvl = 0
+        self.erro_atualEsv = 0
 
         for agent in range(len(self.agents)):
             agentDemands = [

@@ -10,4 +10,4 @@ objetivo = {
     }
 env = make_env(-1,3,objetivo)
 
-parallel_api_test(env, num_cycles=100000)
+parallel_api_test(env, num_cycles=1000000)
