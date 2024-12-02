@@ -205,6 +205,8 @@ class Somn(ParallelEnv):
         self.erro_atualEvl = 0
         self.erro_atualEsv = 0
         
+        self.verificarMax = []
+        
 
         self.MT = []
 
@@ -222,6 +224,7 @@ class Somn(ParallelEnv):
             self.acept_reject.append(0)
             self.produced_wast.append(0)
             self.produced_yard.append(0)
+            self.verificarMax.append(False)
 
         ######################
         #      lb e ub       #
@@ -465,6 +468,7 @@ class Somn(ParallelEnv):
 
             for i in range(len(self.DE[agent])):
                 if self.DE[agent][i].ST == 0: # status RECEIVED
+                    self.verificarMax[agent] = True
                     DF = self.BA[agent] - self.DE[agent][i].FT
                     OR = np.array(
                         [abs(i) if i < 0 else 0 for i in DF]
@@ -501,14 +505,6 @@ class Somn(ParallelEnv):
                         self.IN[agent] += np.array(OR)  # ATUALIZA O TOTAL DE COMPRAVEIScl
                         self.match[agent][i] = 0
                         # print('\n balance: ', self.BA, 'because buying',OR, 'accumulating', self.IN)
-                        
-                        
-            item_lu = Somn.priorq[agent][0].peekitem()
-            item_va = Somn.priorq[agent][1].peekitem()
-            item_su = Somn.priorq[agent][2].peekitem()
-            self.LU_max.append(self.DE[agent][item_lu[0]].PR * self.DE[agent][item_lu[0]].AM / 200)
-            self.VA_max.append(self.DE[agent][item_va[0]].VA)
-            self.SU_max.append(self.DE[agent][item_su[0]].SU)
             
             
         else:
@@ -982,6 +978,15 @@ class Somn(ParallelEnv):
                 while not covered:
                     covered = self.order_receive_and_match(agent) 
             
+            if self.verificarMax[agent]:
+                self.verificarMax[agent] = False
+                item_lu = Somn.priorq[agent][0].peekitem()
+                item_va = Somn.priorq[agent][1].peekitem()
+                item_su = Somn.priorq[agent][2].peekitem()
+                self.LU_max.append(self.DE[agent][item_lu[0]].PR * self.DE[agent][item_lu[0]].AM / 200)
+                self.VA_max.append(self.DE[agent][item_va[0]].VA)
+                self.SU_max.append(self.DE[agent][item_su[0]].SU)
+            
             self.plan(Somn.time[agent], action, agent, fila)
             for i in range(len(self.DE[agent])):
                 self.produce(Somn.time[agent], i, agent)
@@ -1172,6 +1177,7 @@ class Somn(ParallelEnv):
         self.erro_atualEls = 0
         self.erro_atualEvl = 0
         self.erro_atualEsv = 0
+        self.verificarMax = []
 
         for agent in range(len(self.agents)):
             agentDemands = [
@@ -1202,6 +1208,7 @@ class Somn(ParallelEnv):
             self.total_Penalty.append(0)
             self.produced_wast.append(0)
             self.produced_yard.append(0)
+            self.verificarMax.append(False)
 
             for i in range(self.N):
                 self.DE[agent][i](Somn.time[agent], self.statistcs[agent].cont, self.statistcs[agent].load)
