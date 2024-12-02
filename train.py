@@ -1,4 +1,5 @@
 import os
+import wandb
 from ray import air, tune
 from ray.tune.registry import register_env
 from ray.rllib.algorithms.ppo import PPOConfig
@@ -8,23 +9,13 @@ from Ambiente_SOMN.make_env import make_env
 from ray.air.integrations.wandb import WandbLoggerCallback
 from Ambiente_SOMN.MyCallbacks import MyCallbacks
 
-objetivo = {
-        0 : 0,
-        1 : 1,
-        2 : 2,
-        3 : 0,
-        # 4 : 1,
-        # 5 : 2
-    }
-
 # policies = ["Lucro", "Variabilidade", "Sustentabilidade"]
 policies = ["All"]
 
 def env_creator(args):
-    return ParallelPettingZooEnv(make_env(-1, len(objetivo), objetivo))
+    return ParallelPettingZooEnv(make_env(-1, 3))
 
 def policy_mapping_fn(agent_id, episode, worker, **kwargs):
-    policie = objetivo[int(agent_id)]
     policie = policies[0]
     return policie
 
@@ -54,7 +45,7 @@ if __name__ == "__main__":
             checkpoint_config=air.CheckpointConfig(
                 checkpoint_frequency=10,
             ),
-            callbacks=[WandbLoggerCallback(project="resultados finais IC 2", group="6")]
+            callbacks=[WandbLoggerCallback(project="testes fuzzer control", group="6")]
         ),
         param_space=config,
     ).fit()

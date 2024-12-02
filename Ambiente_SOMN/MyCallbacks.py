@@ -1,9 +1,11 @@
 import os
 import csv
+from cv2 import Algorithm
 import matplotlib.pyplot as plt
 from datetime import date, datetime
 from ray.rllib.algorithms.callbacks import DefaultCallbacks
 from ray.rllib.evaluation import Episode, RolloutWorker
+import wandb
 
 class MyCallbacks(DefaultCallbacks):
 
@@ -28,85 +30,7 @@ class MyCallbacks(DefaultCallbacks):
 
         self.step = 0
         self.numepisode = 0
-
-    #     # Abre o arquivo CSV para escrita no modo 'a' (append)
-    #     with open(self.csv_path_yard, mode='a', newline='') as arquivo_csv:
-    #         escritor_csv_yard = csv.writer(arquivo_csv)
-
-    #         # Escreve o cabeçalho se o arquivo estiver vazio
-    #         if os.path.getsize(self.csv_path_yard) == 0:
-    #             escritor_csv_yard.writerow(["Step", "Agent_ID", "Yard"])
-        
-    #     with open(self.csv_path_action, mode='a', newline='') as arquivo_csv:
-    #         escritor_csv_action = csv.writer(arquivo_csv)
-
-    #         # Escreve o cabeçalho se o arquivo estiver vazio
-    #         if os.path.getsize(self.csv_path_action) == 0:
-    #             escritor_csv_action.writerow(["Step", "Agent_ID", "Action"])
-        
-    #     with open(self.csv_path_reject, mode='a', newline='') as arquivo_csv:
-    #         escritor_csv_action = csv.writer(arquivo_csv)
-
-    #         # Escreve o cabeçalho se o arquivo estiver vazio
-    #         if os.path.getsize(self.csv_path_action) == 0:
-    #             escritor_csv_action.writerow(["Step", "Agent_ID", "Reject"])
-        
-    #     with open(self.csv_path_rejectwwast, mode='a', newline='') as arquivo_csv:
-    #         escritor_csv_action = csv.writer(arquivo_csv)
-
-    #         # Escreve o cabeçalho se o arquivo estiver vazio
-    #         if os.path.getsize(self.csv_path_action) == 0:
-    #             escritor_csv_action.writerow(["Step", "Agent_ID", "Reject_Wast"])
-        
-    #     with open(self.csv_path_aceptreject, mode='a', newline='') as arquivo_csv:
-    #         escritor_csv_action = csv.writer(arquivo_csv)
-
-    #         # Escreve o cabeçalho se o arquivo estiver vazio
-    #         if os.path.getsize(self.csv_path_action) == 0:
-    #             escritor_csv_action.writerow(["Step", "Agent_ID", "Acept_Reject"])
-        
-    #     with open(self.csv_path_rejectall, mode='a', newline='') as arquivo_csv:
-    #         escritor_csv_action = csv.writer(arquivo_csv)
-
-    #         # Escreve o cabeçalho se o arquivo estiver vazio
-    #         if os.path.getsize(self.csv_path_action) == 0:
-    #             escritor_csv_action.writerow(["Episode", "RejectAll"])
-
-    # def salvar_dados_csv_yard(self, episode, agent_id, yard_value):
-    #     # Adiciona uma nova linha ao arquivo CSV
-    #     with open(self.csv_path_yard, mode='a', newline='') as arquivo_csv:
-    #         escritor_csv = csv.writer(arquivo_csv)
-    #         escritor_csv.writerow([episode, agent_id, yard_value])
-    
-    # def salvar_dados_csv_action(self, episode, agent_id, yard_value):
-    #     # Adiciona uma nova linha ao arquivo CSV
-    #     with open(self.csv_path_action, mode='a', newline='') as arquivo_csv:
-    #         escritor_csv = csv.writer(arquivo_csv)
-    #         escritor_csv.writerow([episode, agent_id, yard_value])
-    
-    # def salvar_dados_csv_reject(self, episode, agent_id, yard_value):
-    #     # Adiciona uma nova linha ao arquivo CSV
-    #     with open(self.csv_path_reject, mode='a', newline='') as arquivo_csv:
-    #         escritor_csv = csv.writer(arquivo_csv)
-    #         escritor_csv.writerow([episode, agent_id, yard_value])
-    
-    # def salvar_dados_csv_reject_w_wast(self, episode, agent_id, yard_value):
-    #     # Adiciona uma nova linha ao arquivo CSV
-    #     with open(self.csv_path_rejectwwast, mode='a', newline='') as arquivo_csv:
-    #         escritor_csv = csv.writer(arquivo_csv)
-    #         escritor_csv.writerow([episode, agent_id, yard_value])
-    
-    # def salvar_dados_csv_reject_all(self, episode, yard_value):
-    #     # Adiciona uma nova linha ao arquivo CSV
-    #     with open(self.csv_path_rejectall, mode='a', newline='') as arquivo_csv:
-    #         escritor_csv = csv.writer(arquivo_csv)
-    #         escritor_csv.writerow([episode, yard_value])
-
-    # def salvar_dados_csv_acept(self, episode,agent_id, yard_value):
-    #     # Adiciona uma nova linha ao arquivo CSV
-    #     with open(self.csv_path_rejectall, mode='a', newline='') as arquivo_csv:
-    #         escritor_csv = csv.writer(arquivo_csv)
-    #         escritor_csv.writerow([episode,agent_id, yard_value])
+        self.wandb_initialized = False
         
     def on_episode_start(self, *, worker: RolloutWorker, base_env, policies, episode, env_index, **kwargs) -> None:
         self.yard_hist = {}
@@ -164,7 +88,16 @@ class MyCallbacks(DefaultCallbacks):
             episode.custom_metrics[f"Action agent {agent_id}"] = action_value
             episode.custom_metrics[f"Acept_reject agent {agent_id}"] = acept_value
             episode.custom_metrics[f"Penalty Agent {agent_id}"] = self.penalty[agent_id]
-
+            
+            episode.custom_metrics[f"environmental profit"] = agent_info.get("LU")
+            episode.custom_metrics[f"environmental variability"] = agent_info.get("VA")
+            episode.custom_metrics[f"environmental sustainability"] = agent_info.get("SU")
+            
+            episode.custom_metrics[f"enviromental max profit"] = agent_info.get("max_LU")
+            episode.custom_metrics[f"enviromental max variability"] = agent_info.get("max_VA")
+            episode.custom_metrics[f"enviromental max sustainability"] = agent_info.get("max_SU")
+            
+            
             self.penaltyAll += self.penalty[agent_id]
 
             # Verifica se o valor de "yard" está presente

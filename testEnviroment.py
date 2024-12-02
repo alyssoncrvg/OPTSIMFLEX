@@ -8,6 +8,6 @@ objetivo = {
         1 : 1,
         2 : 2
     }
-env = make_env(-1,3,objetivo)
+env = make_env(-1,3)
 
 parallel_api_test(env, num_cycles=1000000)

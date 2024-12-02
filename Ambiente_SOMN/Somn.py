@@ -145,6 +145,9 @@ class Somn(ParallelEnv):
         self.variabilidade = []
         self.sustentabilidade = []
         self.lucro = []
+        self.LU_max = []
+        self.SU_max=[]
+        self.VA_max = []
         self.F = []
         self.acoes = []
         self.atrasos_reais = []
@@ -201,6 +204,7 @@ class Somn(ParallelEnv):
         self.erro_atualEls = 0
         self.erro_atualEvl = 0
         self.erro_atualEsv = 0
+        
 
         self.MT = []
 
@@ -497,6 +501,15 @@ class Somn(ParallelEnv):
                         self.IN[agent] += np.array(OR)  # ATUALIZA O TOTAL DE COMPRAVEIScl
                         self.match[agent][i] = 0
                         # print('\n balance: ', self.BA, 'because buying',OR, 'accumulating', self.IN)
+                        
+                        
+            item_lu = Somn.priorq[agent][0].peekitem()
+            item_va = Somn.priorq[agent][1].peekitem()
+            item_su = Somn.priorq[agent][2].peekitem()
+            self.LU_max.append(self.DE[agent][item_lu[0]].PR * self.DE[agent][item_lu[0]].AM / 200)
+            self.VA_max.append(self.DE[agent][item_va[0]].VA)
+            self.SU_max.append(self.DE[agent][item_su[0]].SU)
+            
             
         else:
             if demand.ST == 0:
@@ -603,11 +616,11 @@ class Somn(ParallelEnv):
                     self.DE[agent][i].action = action
                     self.acao_on_state_plan.append(action)
                     
-                    adicionar_dados_filas_de_prioridades(self.stepnum, agent,
-                                                             self.DE[agent][i].AM * self.DE[agent][i].PR, (self.DE[agent][i].AM * self.DE[agent][i].PR) / 200,
-                                                             self.DE[agent][i].AM * self.DE[agent][i].PR * self.DE[agent][i].VA, self.DE[agent][i].VA,
-                                                             self.DE[agent][i].AM * self.DE[agent][i].PR * self.DE[agent][i].SU, self.DE[agent][i].SU,
-                                                             fila)
+                    # adicionar_dados_filas_de_prioridades(self.stepnum, agent,
+                    #                                          self.DE[agent][i].AM * self.DE[agent][i].PR, (self.DE[agent][i].AM * self.DE[agent][i].PR) / 200,
+                    #                                          self.DE[agent][i].AM * self.DE[agent][i].PR * self.DE[agent][i].VA, self.DE[agent][i].VA,
+                    #                                          self.DE[agent][i].AM * self.DE[agent][i].PR * self.DE[agent][i].SU, self.DE[agent][i].SU,
+                    #                                          fila)
 
                     # executa a acao
                     if self.DE[agent][i].DO > (t + self.DE[agent][i].LT + action):
@@ -762,15 +775,15 @@ class Somn(ParallelEnv):
             
             fila = saidas.index(max(saidas))
             
-            adicionar_dados_filas_escolhidas(self.stepnum ,agent, lucro, variabilidade, sustentabilidade, self.erro_atualEls, self.erro_anteriorEls,
-                        self.erro_atualEsv, self.erro_anteriorEsv, self.erro_atualEvl, self.erro_anteriorEvl, saidaEvl, saidaEls, saidaEsv, fila)
+            # adicionar_dados_filas_escolhidas(self.stepnum ,agent, lucro, variabilidade, sustentabilidade, self.erro_atualEls, self.erro_anteriorEls,
+            #             self.erro_atualEsv, self.erro_anteriorEsv, self.erro_atualEvl, self.erro_anteriorEvl, saidaEvl, saidaEls, saidaEsv, fila)
             
             return fila
         
         fila = saidas.index(min(saidas))
         
-        adicionar_dados_filas_escolhidas(self.stepnum ,agent, lucro, variabilidade, sustentabilidade, erroEls, self.erro_anteriorEls,
-                        erroEsv, self.erro_anteriorEsv, erroEvl, self.erro_anteriorEvl, saidaEvl, saidaEls, saidaEsv, fila)
+        # adicionar_dados_filas_escolhidas(self.stepnum ,agent, lucro, variabilidade, sustentabilidade, erroEls, self.erro_anteriorEls,
+        #                 erroEsv, self.erro_anteriorEsv, erroEvl, self.erro_anteriorEvl, saidaEvl, saidaEls, saidaEsv, fila)
         
         return fila
 
@@ -968,7 +981,7 @@ class Somn(ParallelEnv):
                 covered = False
                 while not covered:
                     covered = self.order_receive_and_match(agent) 
-                    
+            
             self.plan(Somn.time[agent], action, agent, fila)
             for i in range(len(self.DE[agent])):
                 self.produce(Somn.time[agent], i, agent)
@@ -1036,9 +1049,12 @@ class Somn(ParallelEnv):
                     "rw_pr": self.rw_pr,
                     "rw_va": self.rw_va,
                     "rw_su": self.rw_su,
-                    "LU": self.lucro,
-                    "VA": self.variabilidade,
-                    "SU": self.sustentabilidade,
+                    "LU": self.safe_mean(self.lucro),
+                    "VA": self.safe_mean(self.variabilidade),
+                    "SU": self.safe_mean(self.sustentabilidade),
+                    "max_LU": self.safe_mean(self.LU_max),
+                    "max_VA": self.safe_mean(self.VA_max),
+                    "max_SU": self.safe_mean(self.SU_max),
                     "F": self.F,
                     "acoes": action,
                     "reject": self.statistcs[agent].reject,
@@ -1133,6 +1149,9 @@ class Somn(ParallelEnv):
         self.variabilidade = []
         self.sustentabilidade = []
         self.lucro = []
+        self.LU_max = []
+        self.SU_max=[]
+        self.VA_max = []
 
         self.YA = []
 
