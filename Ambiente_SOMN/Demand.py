@@ -86,6 +86,60 @@ class Demand:
         self.CO = self.AM * self.CO #/ self.MAXAM - 1  # custo com o amount
         
         self.PR = self.fun_theta(self.SU + self.VA)  ### LUCRO EH 2X CUSTO  self.PR = Demand.MAXPE  (by fred)
+        self.LU = (self.PR * self.AM) / (self.MAXAM * self.MAXPR)  # LUCRO NORMALIZADO
+    
+    # def __call__(self, t: int, cont: int, load: int):
+    #     cont += 1
+    #     self.CU = cont
+    #     self.AM = random.uniform(0, Demand.MAXAM)  # Amount normalizado
+    #     self.PE = random.uniform(0, Demand.MAXPE)  # Peso normalizado
+    #     self.ST = int(0)  # Status inicial
+
+    #     # Escolhe aleatoriamente as features (tempos para cada máquina)
+    #     self.F, self.FT, self.mask_FT = self.gera_features()
+
+    #     self.LT = self.fun_tau()
+    #     self.real_LT = poisson.rvs(mu=(self.LT + load))
+    #     self.TP = t + self.real_LT
+
+    #     self.atraso_real = abs(self.real_LT - self.LT)
+    #     self.action = self.atraso_real
+    #     self.err = abs(self.action - self.atraso_real)
+
+    #     self.DI = t
+    #     self.DO = t + self.LT + random.randint(0, Demand.MAXDO)
+        
+    #     self.SP = self.fun_gamma()
+        
+    #     self.CO = 0.0
+    #     for j in range(Demand.M):
+    #         if self.FT[j] != 0:
+    #             # self.CO += ((self.MAXFT - 1) / self.FT[j]) * Demand.EU[j] #/ self.MAXFT * self.MAXEU
+    #             self.CO += self.FT[j] * Demand.EU[j]
+    #         else:
+    #             self.CO += 0
+
+    #         # self.CO /= self.F
+    #     # sustentabilidade tem um custo maior    
+    #     # self.CO = self.CO * float(self.M/self.F)
+    #     self.CO = self.AM * self.CO #/ self.MAXAM - 1  # custo com o amount
+
+    #     # Sorteio da variável dominante
+    #     dominant = random.choice(["VA", "SU", "PR"])
+        
+    #     if dominant == "VA":
+    #         self.VA = random.uniform(0.8, 1.0)  # Valor alto para VA
+    #         self.SU = random.uniform(0.0, 0.4)  # Valor baixo para SU
+    #         self.PR = random.uniform(0.4, 0.6)  # Valor intermediário para PR
+    #     elif dominant == "SU":
+    #         self.SU = random.uniform(0.8, 1.0)  # Valor alto para SU
+    #         self.VA = random.uniform(0.0, 0.4)  # Valor baixo para VA
+    #         self.PR = random.uniform(0.4, 0.6)  # Valor intermediário para PR
+    #     else:  # PR dominante
+    #         self.PR = random.uniform(0.8, 1.0)  # Valor alto para PR
+    #         self.VA = random.uniform(0.4, 0.6)  # Valor intermediário para VA
+    #         self.SU = random.uniform(0.0, 0.4)  # Valor baixo para SU
+
 
         
 
@@ -147,3 +201,14 @@ class Demand:
         mask[posicoes] = 1
         
         return F, np.random.randint(1,Demand.MAXFT,Demand.M).astype(np.int32) * mask, mask
+
+    def __repr__(self):
+        try:
+            # Tenta acessar os atributos que são gerados no método __call__
+            return (f"Demand("
+                    f"AM={self.AM}, PR={self.PR:.2f}, SU={self.SU:.2f}, VA={self.VA:.2f} "
+                    f"CO={self.CO:.2f}, DI={self.DI}, DO={self.DO}, "
+                    f"atraso_real={self.atraso_real}, action={self.action}, err={self.err})")
+        except AttributeError:
+            # Caso o método __call__ ainda não tenha sido executado
+            return "Demand instance: attributes not yet initialized. Call the instance with (t, cont, load)."

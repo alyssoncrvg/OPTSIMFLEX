@@ -13,7 +13,7 @@ from Ambiente_SOMN.MyCallbacks import MyCallbacks
 policies = ["All"]
 
 def env_creator(args):
-    return ParallelPettingZooEnv(make_env(-1, 3))
+    return ParallelPettingZooEnv(make_env(-1, 1))
 
 def policy_mapping_fn(agent_id, episode, worker, **kwargs):
     policie = policies[0]

@@ -97,6 +97,14 @@ class MyCallbacks(DefaultCallbacks):
             episode.custom_metrics[f"enviromental max variability"] = agent_info.get("max_VA")
             episode.custom_metrics[f"enviromental max sustainability"] = agent_info.get("max_SU")
             
+            episode.custom_metrics[f"Contorler Global Profit"] = agent_info.get("controler_global_profit")
+            episode.custom_metrics[f"Contorler Global Variability"] = agent_info.get("controler_global_variability")
+            episode.custom_metrics[f"Contorler Global Sustainability"] = agent_info.get("controler_global_sustainability")
+            
+            episode.custom_metrics[f"Queue amout profit"] = agent_info.get("amount_queue_profit")
+            episode.custom_metrics[f"Queue amout variability"] = agent_info.get("amount_queue_variability")
+            episode.custom_metrics[f"Queue amout sustainability"] = agent_info.get("amount_queue_sustainability")
+            
             
             self.penaltyAll += self.penalty[agent_id]
 

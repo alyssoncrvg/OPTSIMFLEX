@@ -142,12 +142,22 @@ class Somn(ParallelEnv):
         self.rw_pr = 0.0
         self.rw_va = 0.0
         self.rw_su = 0.0
+        
         self.variabilidade = []
         self.sustentabilidade = []
         self.lucro = []
         self.LU_max = []
         self.SU_max=[]
         self.VA_max = []
+        
+        self.controler_global_profit = 0
+        self.controler_global_variability = 0
+        self.controler_global_sustainability = 0
+        
+        self.amount_queue_profit = 0
+        self.amount_queue_variability = 0
+        self.amount_queue_sustainability = 0
+        
         self.F = []
         self.acoes = []
         self.atrasos_reais = []
@@ -431,13 +441,19 @@ class Somn(ParallelEnv):
                         if idx >= 0:
                             self.YA[agent].remove_yard(idx)
                             # adiciona a recompensa
-                            # tx_ambiente = self.DE[agent][i].err
+                  
+                            # FUNÇÃO DE RECOMPENSA ORIGINAL
                             self.rw_pr += self.DE[agent][i].AM * self.DE[agent][i].PR
-                            # - self.DE[agent][i].AM * self.DE[agent][i].PR * tx_ambiente * 0.1
                             self.rw_va += self.DE[agent][i].AM * self.DE[agent][i].PR * self.DE[agent][i].VA
-                            # - self.DE[agent][i].AM * self.DE[agent][i].PR * tx_ambiente * 0.1
                             self.rw_su += self.DE[agent][i].AM * self.DE[agent][i].PR * self.DE[agent][i].SU
-                            # - self.DE[agent][i].AM * self.DE[agent][i].PR * tx_ambiente * 0.1
+                            
+                            
+                            
+                            # self.rw_pr += self.DE[agent][i].AM * self.DE[agent][i].PR
+                            # self.rw_va += self.DE[agent][i].AM * self.DE[agent][i].VA
+                            # self.rw_su += self.DE[agent][i].AM * self.DE[agent][i].SU
+                            
+                            
                             # libera o espaço i para entrar outra demanda
                             self.DE[agent][i].ST = -1
                             self.match[agent][i] = 0
@@ -632,7 +648,8 @@ class Somn(ParallelEnv):
                         self.atrasos_reais.append(self.DE[agent][i].atraso_real)
                         self.variabilidade.append(self.DE[agent][i].VA)
                         self.sustentabilidade.append(self.DE[agent][i].SU)
-                        self.lucro.append((self.DE[agent][i].AM * self.DE[agent][i].PR) / 200)
+                        self.lucro.append((self.DE[agent][i].LU))
+                        # self.lucro.append((self.DE[agent][i].AM * self.DE[agent][i].PR) / 200)
                         self.F.append(self.DE[agent][i].F)
                         
                         self.erro_anteriorEsv = self.erro_atualEsv
@@ -743,49 +760,61 @@ class Somn(ParallelEnv):
         Equilibrar o ambiente através do controlador escolhendo qual fila de prioridade será utilizada para avaliar a demanda\n
         return -> index da fila de prioridade
         """
-        erroEls = 0
-        erroEsv = 0
-        erroEvl = 0
         derivEvl = 0
         derivEls = 0
         derivEsv = 0
         saidaEvl = 0
         saidaEls = 0
         saidaEsv = 0
-        saidas = [lucro, variabilidade, sustentabilidade ]
         
-        if(lucro != 0 and sustentabilidade != 0 and variabilidade != 0):
-            self.erro_atualEls = (lucro - sustentabilidade)/ sustentabilidade
-            self.erro_atualEvl = (variabilidade - lucro)/ lucro
-            self.erro_atualEsv = (sustentabilidade - variabilidade)/ variabilidade
-            
-            derivEls = (self.erro_atualEls - self.erro_anteriorEls)
-            derivEvl = (self.erro_atualEvl - self.erro_anteriorEvl)
-            derivEsv = (self.erro_atualEsv - self.erro_anteriorEsv)
-            
-            saidaEls = controle(self.erro_atualEls, derivEls, SetErro, SetDeri, SetAcao)
-            saidaEvl = controle(self.erro_atualEvl, derivEvl, SetErro, SetDeri, SetAcao)
-            saidaEsv = controle(self.erro_atualEsv, derivEsv, SetErro, SetDeri, SetAcao)
-            
-            saidas = [saidaEls, saidaEvl, saidaEsv]
-            
-            fila = saidas.index(max(saidas))
-            
-            # adicionar_dados_filas_escolhidas(self.stepnum ,agent, lucro, variabilidade, sustentabilidade, self.erro_atualEls, self.erro_anteriorEls,
-            #             self.erro_atualEsv, self.erro_anteriorEsv, self.erro_atualEvl, self.erro_anteriorEvl, saidaEvl, saidaEls, saidaEsv, fila)
-            
-            return fila
+        # if(sustentabilidade != 0 and variabilidade != 0):
+        # self.erro_atualEls = (lucro - sustentabilidade)/ sustentabilidade
+        self.erro_atualEvl = (variabilidade - 0.5)/ 0.5
+        self.erro_atualEsv = (sustentabilidade - 0.5)/ 0.5
         
-        fila = saidas.index(min(saidas))
+        # derivEls = (self.erro_atualEls - self.erro_anteriorEls)
+        derivEvl = (self.erro_atualEvl - self.erro_anteriorEvl)
+        derivEsv = (self.erro_atualEsv - self.erro_anteriorEsv)
         
-        # adicionar_dados_filas_escolhidas(self.stepnum ,agent, lucro, variabilidade, sustentabilidade, erroEls, self.erro_anteriorEls,
-        #                 erroEsv, self.erro_anteriorEsv, erroEvl, self.erro_anteriorEvl, saidaEvl, saidaEls, saidaEsv, fila)
+        # saidaEls = controle(self.erro_atualEls, derivEls, SetErro, SetDeri, SetAcao)
+        saidaEvl = controle(self.erro_atualEvl, derivEvl, SetErro, SetDeri, SetAcao)
+        saidaEsv = controle(self.erro_atualEsv, derivEsv, SetErro, SetDeri, SetAcao)
+        
+        self.controler_global_profit += saidaEls
+        self.controler_global_variability += saidaEvl
+        self.controler_global_sustainability += saidaEsv
+        
+        # saidas = [saidaEls, saidaEvl, saidaEsv] #PD
+        saidas = [self.controler_global_variability, self.controler_global_sustainability] #PI
+        
+        # fila = saidas.index(max(saidas)) # PD
+        fila = saidas.index(max(saidas)) + 1 #PI
+        
+        # adicionar_dados_filas_escolhidas(self.stepnum ,agent, lucro, variabilidade, sustentabilidade, self.erro_atualEls, self.erro_anteriorEls,
+        #             self.erro_atualEsv, self.erro_anteriorEsv, self.erro_atualEvl, self.erro_anteriorEvl, saidaEvl, saidaEls, saidaEsv, fila)
         
         return fila
+        
+        # fila = saidas.index(min(saidas))
+        # # fila = saidas.index(max(saidas))
 
-    def produce(self, t: int, i: int, agent):
+        
+        # # adicionar_dados_filas_escolhidas(self.stepnum ,agent, lucro, variabilidade, sustentabilidade, erroEls, self.erro_anteriorEls,
+        # #                 erroEsv, self.erro_anteriorEsv, erroEvl, self.erro_anteriorEvl, saidaEvl, saidaEls, saidaEsv, fila)
+        
+        # return fila
+
+    def produce(self, t: int, i: int, agent, fila: int):
         
         if self.DE[agent][i].ST == 3:
+            
+            if fila == 0:
+                self.amount_queue_profit += 1
+            elif fila == 1:
+                self.amount_queue_variability += 1
+            elif fila == 2:
+                self.amount_queue_sustainability += 1
+            
             if self.DE[agent][i].TP < t:  ### TP eh resultado de LT(#f) + RAND
                 if self.DE[agent][i].rejects != []:
                     self.acept_reject[agent] += 1
@@ -824,9 +853,20 @@ class Somn(ParallelEnv):
              
         if self.DE[agent][i].ST == 5:
             
+            # FUNÇÃO DE RECOMPENSA ORIGINAL
             self.rw_pr += self.DE[agent][i].AM * self.DE[agent][i].PR
             self.rw_va += self.DE[agent][i].AM * self.DE[agent][i].PR * self.DE[agent][i].VA
             self.rw_su += self.DE[agent][i].AM * self.DE[agent][i].PR * self.DE[agent][i].SU
+            
+            
+            
+            # self.rw_pr += self.DE[agent][i].AM * self.DE[agent][i].PR
+            # self.rw_va += self.DE[agent][i].AM * self.DE[agent][i].VA
+            # self.rw_su += self.DE[agent][i].AM * self.DE[agent][i].SU
+            
+            
+            
+            
 
             self.DE[agent][i].ST = -1  # LIBERA O ESPAÇO APÓS CONTABILIZADO
             self.match[agent][i] = 0
@@ -971,7 +1011,9 @@ class Somn(ParallelEnv):
             # se a fila de prioridade estiver vazia 
             # entra em order_receive_and_match() senao pula para plan()
             
-            fila = self.balance(agent, self.safe_mean(self.lucro), self.safe_mean(self.sustentabilidade), self.safe_mean(self.variabilidade)) #FALTA AS ENTRADAS
+            # fila = self.balance(agent, self.safe_mean(self.lucro), self.safe_mean(self.sustentabilidade), self.safe_mean(self.variabilidade))
+            fila = random.randint(0, 2)
+            # fila = 0
             
             if len(Somn.priorq[agent][fila]) == 0: #encher fila de prioridade, remodelar
                 covered = False
@@ -983,13 +1025,14 @@ class Somn(ParallelEnv):
                 item_lu = Somn.priorq[agent][0].peekitem()
                 item_va = Somn.priorq[agent][1].peekitem()
                 item_su = Somn.priorq[agent][2].peekitem()
-                self.LU_max.append(self.DE[agent][item_lu[0]].PR * self.DE[agent][item_lu[0]].AM / 200)
+                self.LU_max.append(self.DE[agent][item_lu[0]].LU )
+                # self.LU_max.append(self.DE[agent][item_lu[0]].PR * self.DE[agent][item_lu[0]].AM / 200)
                 self.VA_max.append(self.DE[agent][item_va[0]].VA)
                 self.SU_max.append(self.DE[agent][item_su[0]].SU)
             
             self.plan(Somn.time[agent], action, agent, fila)
             for i in range(len(self.DE[agent])):
-                self.produce(Somn.time[agent], i, agent)
+                self.produce(Somn.time[agent], i, agent, fila)
                 self.dispatch(i, agent)
                 self.store(i, agent)
                 self.reject(i, agent)
@@ -1060,6 +1103,12 @@ class Somn(ParallelEnv):
                     "max_LU": self.safe_mean(self.LU_max),
                     "max_VA": self.safe_mean(self.VA_max),
                     "max_SU": self.safe_mean(self.SU_max),
+                    "controler_global_profit": self.controler_global_profit,
+                    "controler_global_variability": self.controler_global_variability,
+                    "controler_global_sustainability": self.controler_global_sustainability,
+                    "amount_queue_profit": self.amount_queue_profit,
+                    "amount_queue_variability": self.amount_queue_variability,
+                    "amount_queue_sustainability": self.amount_queue_sustainability,
                     "F": self.F,
                     "acoes": action,
                     "reject": self.statistcs[agent].reject,
@@ -1157,6 +1206,13 @@ class Somn(ParallelEnv):
         self.LU_max = []
         self.SU_max=[]
         self.VA_max = []
+        self.controler_global_profit = 0
+        self.controler_global_variability = 0
+        self.controler_global_sustainability = 0
+        
+        self.amount_queue_profit = 0
+        self.amount_queue_variability = 0
+        self.amount_queue_sustainability = 0
 
         self.YA = []
 
