@@ -86,7 +86,7 @@ class Demand:
         self.CO = self.AM * self.CO #/ self.MAXAM - 1  # custo com o amount
         
         self.PR = self.fun_theta(self.SU + self.VA)  ### LUCRO EH 2X CUSTO  self.PR = Demand.MAXPE  (by fred)
-        self.LU = (self.PR * self.AM) / (self.MAXAM * self.MAXPR)  # LUCRO NORMALIZADO
+        self.LU = (self.PR * self.AM) / (self.MAXAM * 1.5 * self.M * self.MAXFT)  # LUCRO NORMALIZADO
     
     # def __call__(self, t: int, cont: int, load: int):
     #     cont += 1
