@@ -9,6 +9,15 @@ from Ambiente_SOMN.make_env import make_env
 from ray.air.integrations.wandb import WandbLoggerCallback
 from Ambiente_SOMN.MyCallbacks import MyCallbacks
 
+# objetivo = {
+#         0 : 0,
+#         1 : 1,
+#         2 : 2,
+#         3 : 0,
+#         4 : 1,
+#         5 : 2
+#     }
+
 # policies = ["Lucro", "Variabilidade", "Sustentabilidade"]
 policies = ["All"]
 
